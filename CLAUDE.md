@@ -9,7 +9,9 @@
 - 素の JavaScript（ES Modules）。ビルド工程・フレームワーク・npm は使わない
 - three.js は CDN から importmap で読み込む。バージョンは導入時の安定版に固定する
 - 機械学習ライブラリは使わない。モデルは自前実装
-- 3D（three.js）はキャラクター表示だけ。頭の中の演出は HTML/CSS の 2D で作る
+- 画面の主役は three.js の 3D の部屋（空モデルの頭の中）。キャラクターが部屋を動き回ってトレースを演じる
+- HTML は文字入力・タブ・速度切り替えなど最小限にする。「ブラウザゲーム感」のあるパネル UI にしない
+- キャラクターや小物は Blender で作る（`blender/build_assets.py` から glb を書き出す。手作業の編集はしない）
 - 保存は localStorage
 - 音声は扱わない
 - スマホ縦画面で遊べることを優先する
@@ -30,9 +32,11 @@ docs/roadmap.md     実装ステップと進捗
 src/main.js         起動と画面切り替え
 src/model/          モデル本体・チップ・トレース（UI 非依存）
 src/model/chips/    チップ（1 ファイル 1 チップ）
-src/ui/             画面と演出（トレース再生）
+src/ui/             画面と演出（3D の部屋でトレースを再生）
 src/save.js         セーブとロード
-assets/character.glb  Blender から書き出したキャラ（未配置の間は仮の図形を出す）
+assets/character.glb  Blender から書き出したキャラクター
+assets/room.glb       Blender から書き出した部屋と小物、立ち位置の目印
+blender/build_assets.py  assets/ の glb を作る Blender スクリプト
 ```
 
 ## 作業ルール
@@ -48,3 +52,5 @@ assets/character.glb  Blender から書き出したキャラ（未配置の間�
 ## 動作確認
 
 ES Modules は `file://` では動かない。VS Code の Live Server で `index.html` を開く。
+
+glb を作り直すとき: `blender -b -P blender/build_assets.py`（Blender 5.3 で確認）

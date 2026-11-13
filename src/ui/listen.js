@@ -13,7 +13,7 @@ export function createListen(root, { model, mind, show, run }) {
   form.className = 'listen-form';
   const area = document.createElement('textarea');
   area.placeholder = 'おはよう\nおやすみ';
-  area.rows = 4;
+  area.rows = 2;
   const button = document.createElement('button');
   button.type = 'submit';
   button.textContent = '聞かせる';
@@ -28,6 +28,7 @@ export function createListen(root, { model, mind, show, run }) {
 
     run(async () => {
       area.value = '';
+      mind.showIdle();
       mind.say('耳をすませている…');
       const trace = lines.flatMap((line) => model.hear(line).trace);
       await show(trace);

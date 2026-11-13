@@ -1,7 +1,7 @@
 // 起動と画面切り替え
 
 import { createModel } from './model/model.js';
-import { createMind } from './ui/mind.js';
+import { createStage } from './ui/stage.js';
 import { createTalk } from './ui/talk.js';
 import { createListen } from './ui/listen.js';
 import { createSleep } from './ui/sleep.js';
@@ -9,8 +9,8 @@ import { save, load, clear } from './save.js';
 
 // 演出の速度。値は 1 手順あたりの待ち時間（ミリ秒）。0 は再生しない
 const SPEEDS = [
-  { id: 'slow', name: 'ゆっくり', step: 1000 },
-  { id: 'normal', name: 'ふつう', step: 400 },
+  { id: 'slow', name: 'ゆっくり', step: 800 },
+  { id: 'normal', name: 'ふつう', step: 300 },
   { id: 'skip', name: '飛ばす', step: 0 },
 ];
 let speed = SPEEDS[1];
@@ -47,15 +47,8 @@ for (const s of SPEEDS) {
 }
 top.append(title, speedBox);
 
-// キャラクター（3D）。three.js を読み込めなくても遊べるように、後から差し込む
-const characterRoot = document.createElement('section');
-characterRoot.className = 'character';
-import('./ui/character.js')
-  .then((m) => m.createCharacter(characterRoot))
-  .catch(() => { characterRoot.hidden = true; });
-
-// 中: 頭の中
-const mindRoot = document.createElement('section');
+// 中: 3D の部屋
+const stageRoot = document.createElement('section');
 
 // 下: パートとタブ。演出中は fieldset ごと操作できなくする
 const bottom = document.createElement('fieldset');
@@ -63,13 +56,22 @@ bottom.className = 'bottom';
 const tabs = document.createElement('nav');
 tabs.className = 'tabs';
 
-app.replaceChildren(top, characterRoot, mindRoot, bottom);
+app.replaceChildren(top, stageRoot, bottom);
 
 const model = createModel();
 const saved = load();
 if (saved) model.restore(saved);
-const mind = createMind(mindRoot);
+
+bottom.disabled = true;
+let mind;
+try {
+  mind = await createStage(stageRoot);
+} catch (e) {
+  stageRoot.textContent = '3D の部屋を読み込めませんでした。通信を確認して、読み込み直してください。';
+  throw e;
+}
 mind.syncMemory(model.shortMemory);
+bottom.disabled = false;
 
 let busy = false;
 async function run(fn) {

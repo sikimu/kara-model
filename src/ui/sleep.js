@@ -19,8 +19,8 @@ export function createSleep(root, { model, mind, show, run, complete, close }) {
   root.addEventListener('open', () => {
     const count = model.shortMemory.length;
     hint.textContent = count === 0
-      ? 'まだ何も聞いていない。話すか、聞きに行くと、夢でおぼえられる'
-      : `夢の中で、聞いた ${count} 文をおぼえる`;
+      ? 'まずはコトに話しかけるか、外へ聞きに行ってみよう'
+      : '今日はここで、ひとやすみしようか。';
     button.disabled = count === 0;
   });
 

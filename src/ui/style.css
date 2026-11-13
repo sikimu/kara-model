@@ -345,7 +345,7 @@ button.person-icon:hover { background: #f0e4cb; }
  .part.listen { padding: 12px; gap: 7px; }
  .listen-people { flex: 1 1 auto; min-height: 85px; }
 }
-/* おでかけのカットイン */
+/* お出掛けのカットイン */
 .logo span { display: grid; gap: 2px; }
 .logo small { font-size: 10px; font-weight: 500; letter-spacing: .08em; }
 .journey-cut { position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; overflow: hidden; color: #455c48; background: radial-gradient(ellipse at 20% 10%, #fffaf0 0, transparent 55%), #e7edda; opacity: 0; visibility: hidden; transition: opacity .45s ease, visibility .45s; pointer-events: none; }
@@ -411,3 +411,9 @@ button.person-icon:hover { background: #f0e4cb; }
  .title-copy { top: 8%; }.title-copy h1 { font-size: 38px; }.title-tagline { font-size: 13px; margin-top: 12px; }.title-entry { bottom: 5%; }
  .journey-card { padding: 8px; }.journey-brand, .journey-footer { display: none; }.journey-painting { max-height: 48vh; margin: 8px auto; }.journey-title { font-size: 22px; }.journey-route { margin: 10px 0; }
 }
+/* 初日の操作案内。目印はクリックを遮らず、部屋のもの自体を押す。 */
+.tutorial-target { position: absolute; z-index: 4; width: 76px; height: 76px; transform: translate(-50%, -50%); border: 2px dashed #53744c; border-radius: 50%; box-shadow: 0 0 0 5px #fffcdf88; pointer-events: none; }
+.tutorial-target > span { position: absolute; left: 50%; bottom: calc(100% + 10px); transform: translateX(-50%); padding: 5px 12px; border-radius: 16px; background: #fffbed; border: 1px solid #b4c098; color: #45613d; font-size: 13px; white-space: nowrap; box-shadow: 0 3px 10px #3f523624; }
+.tutorial-target.near-left > span { left: 0; transform: none; }
+.tutorial-target.near-right > span { left: auto; right: 0; transform: none; }
+@media (max-width: 640px) { .tutorial-target { width: 60px; height: 60px; }.tutorial-target > span { font-size: 12px; } }

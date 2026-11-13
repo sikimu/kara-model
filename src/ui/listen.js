@@ -1,4 +1,4 @@
-// 盗み聞き。ドアを押すと出る。広場で話す人数とそれぞれの言葉を決めて、キャラクターに聞きに行かせる。
+// お出掛け。ドアを押すと出る。広場で話す人数とそれぞれの言葉を決めて、キャラクターに聞きに行かせる。
 // 聞いた文は短期記憶にたまるだけで、集計表は変わらない。
 
 import { ICONS, iconButton } from './icons.js';
@@ -13,7 +13,7 @@ const SAMPLES = [
 export function createListen(root, { model, mind, show, run, complete, getStep, close }) {
   const invitation = document.createElement('div');
   invitation.className = 'listen-invitation';
-  invitation.innerHTML = '<span class="listen-sign">おでかけのしおり</span><h2>まちの ひろば</h2><p>お店の前で、だれかがおしゃべり。<br>そっと耳をすませて、言葉を持ち帰ろう。</p>';
+  invitation.innerHTML = '<span class="listen-sign">お出掛けのしおり</span><h2>まちの ひろば</h2><p>お店の前で、だれかがおしゃべり。<br>まちの声に耳をすませてみよう。</p>';
   const help = document.createElement('p');
   help.className = 'listen-help';
   help.textContent = '人数と言葉を決めよう。1 行がひとこと。本のボタンでお手本も入るよ。';
@@ -28,7 +28,7 @@ export function createListen(root, { model, mind, show, run, complete, getStep, 
   const go = document.createElement('button');
   go.type = 'button';
   go.className = 'listen-go';
-  go.innerHTML = `${ICONS.walk}<span>聞きに行く</span>`;
+  go.innerHTML = `${ICONS.walk}<span>お出掛けする</span>`;
   head.append(counts, sample, go);
 
   // 下の段: それぞれの言葉（1 行が 1 文）

@@ -212,7 +212,7 @@ export async function createRoom(root) {
   curtain.innerHTML = `<div class="journey-card">
     <span class="journey-brand">からっぽのコト</span>
     <span class="journey-kicker"></span>
-    <div class="journey-painting"><img class="journey-art journey-art-plaza" src="./assets/journey-plaza.png?v=${version}" alt="???????????????????"><img class="journey-art journey-art-home" src="./assets/journey-home.png?v=${version}" alt="???????????????????"></div>
+    <div class="journey-painting"><img class="journey-art journey-art-plaza" src="./assets/journey-plaza.png?v=${version}" alt="コトがパン屋と花屋の並ぶまちへ出掛ける"><img class="journey-art journey-art-home" src="./assets/journey-home.png?v=${version}" alt="ことばのかごを抱えて、おうちへ帰るコト"></div>
     <h2 class="journey-title"></h2><p class="journey-note"></p>
     <div class="journey-route"><span class="journey-from"></span><span class="journey-trail" aria-hidden="true"><i>●</i><i>●</i><i>●</i><i>●</i><i>●</i></span><span class="journey-to"></span></div>
     <span class="journey-footer">聞いて、眠って、ことばが育つ。</span>
@@ -221,7 +221,7 @@ export async function createRoom(root) {
   async function transition(title, ms, fn) {
     const home = title === 'おうち';
     curtain.dataset.destination = home ? 'home' : 'plaza';
-    curtain.querySelector('.journey-kicker').textContent = home ? 'ただいままで、あと少し' : '小さな、おでかけ';
+    curtain.querySelector('.journey-kicker').textContent = home ? 'ただいままで、あと少し' : '小さな、お出掛け';
     curtain.querySelector('.journey-title').textContent = home ? 'ことばを連れて、おうちへ。' : 'まちの声を、聞きに。';
     curtain.querySelector('.journey-note').textContent = home ? '今日のことばを、夢でおぼえよう。' : 'どんなことばに、出会えるかな。';
     curtain.querySelector('.journey-from').textContent = home ? 'まちの ひろば' : 'おうち';

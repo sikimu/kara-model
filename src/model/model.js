@@ -26,7 +26,7 @@ export function createModel({ random = Math.random } = {}) {
   const shortMemory = []; // 短期記憶（文の配列）
   const stats = { sleeps: 0 };
   const options = { temperature: 1 };
-  const tutorial = { step: 0 };
+  const tutorial = { step: 0, reflection: null };
   const samplers = [samplerProportional, samplerTemperature];
   function setSampler(id, temperature = options.temperature) {
     const chip = samplers.find(c => c.id === id);
@@ -117,6 +117,8 @@ export function createModel({ random = Math.random } = {}) {
     setSampler(data.chips?.sampler, data.options?.temperature ?? 1);
     tutorial.step = Number.isInteger(data.tutorial?.step) && data.tutorial.step >= 0 && data.tutorial.step <= 4
       ? data.tutorial.step : (stats.sleeps > 0 || Object.keys(store).length > 0 ? 4 : 0);
+    tutorial.reflection = ['first-talk', 'heard', 'slept', 'replied', 'quiet'].includes(data.tutorial?.reflection)
+      ? data.tutorial.reflection : null;
   }
 
   return { chips, store, shortMemory, stats, options, tutorial, samplers, setSampler, infer, hear, sleep, snapshot, restore };

@@ -154,7 +154,7 @@ export async function createStage(root, model) {
   }
 
   // ---- 短期記憶（かごの上の札） ----
-  // 札を積む場所。家ではかごの上、お出かけ中はキャラクターのそば（メモ）
+  // 札を積む場所。家ではかごの上、お出掛け中はキャラクターのそば（メモ）
   let memBase = P.basketTop;
   const memSlot = (i) => new THREE.Vector3(memBase.x - 0.5, memBase.y + 0.2 + i * 0.36 * room.textScale, memBase.z);
   function memLabel(text) {
@@ -336,14 +336,14 @@ export async function createStage(root, model) {
     caption.textContent = '';
   }
 
-  // ---- 盗み聞き ----
-  // 外へ出て茂みの陰に隠れ、広場に count 人が現れる
+  // ---- お出掛け ----
+  // 外へ出て木陰でひと休みし、広場に count 人が現れる
   async function goListen(count, getStep) {
     clearLines();
-    caption.textContent = '外の話し声を聞きに行く';
+    caption.textContent = 'まちのひろばへ、お出掛け';
     sfx('pop', getStep());
     await Promise.all([swingDoor(1.5, getStep() * 0.8), actor.walkTo(P.doorIn, getStep())]);
-    // 場面転換: まちの ひろば へ。聞いた文のメモは、隠れ場所のそばに積む
+    // 場面転換: まちの ひろば へ。聞いた文のメモは、木陰のそばに積む
     await room.transition('まちの ひろば', getStep() * 2.5, () => {
       room.setScene('plaza');
       actor.root.position.copy(P.doorOut);
@@ -367,7 +367,7 @@ export async function createStage(root, model) {
         return tween(step * 0.6, (k) => npc.scale.setScalar(Math.max(0.001, ease(k))));
       });
     }));
-    caption.textContent = 'しーっ… 茂みの陰で聞いている';
+    caption.textContent = '木陰で、まちの会話に耳をすませている';
   }
 
   // index 番目の人が text を話し、それを聞く（trace は model.hear の結果）
@@ -441,7 +441,7 @@ export async function createStage(root, model) {
   const boardPos = room.board.mesh.position;
   const HOT = [
     { id: 'talk', label: '話しかける', objects: [actor.root], center: () => above(actor.root.position, 0, 0.8, 0), top: 1.2 },
-    { id: 'listen', label: '外へ聞きに行く', objects: [door, room.object('door_top')],
+    { id: 'listen', label: 'お出掛け', objects: [door, room.object('door_top')],
       center: () => door.localToWorld(new THREE.Vector3(0, 1.3, 0.6)), top: 1.5 },
     { id: 'sleep', label: '眠る', objects: [room.object('bed')], center: () => above(bedPos, 0, 0.5, 0), top: 0.7 },
     { id: 'explore', label: '頭の中を見る', objects: [room.object('board'), room.object('board_slate'), room.board.mesh],

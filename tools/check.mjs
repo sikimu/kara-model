@@ -153,6 +153,9 @@ try {
   expect('起動して操作できる', (await busy()) === false);
   expect('ゲームタイトルを表示する', await evaluate(`document.title.startsWith('からっぽのコト') && document.querySelector('.logo').textContent.includes('からっぽのコト')`));
   expect('初日は会話から案内する', await evaluate(`kara.tutorial.step === 0 && !document.querySelector('.tutorial').hidden`));
+  expect('操作前は結果を明かさず、コトを押すよう案内する', await evaluate(`document.querySelector('.tutorial').textContent.includes('コトを${MOBILE ? 'タップ' : 'クリック'}') && !document.querySelector('.tutorial').textContent.includes('返事は') && !document.querySelector('.tutorial-target').hidden`));
+  await clickOn('.tutorial button');
+  expect('場所の案内ボタンは会話を開かず、実物を押す操作を促す', await evaluate(`document.querySelector('.dock').hidden`));
   await shot('1-home.png');
   await clickOn('.settings-button');
   expect('設定を開ける', await evaluate(`document.querySelector('.settings').open`));
@@ -172,16 +175,24 @@ try {
   await shot('2-thinking.png');
   await done();
   expect('空の状態では「……」を返す', (await evaluate(`document.querySelector('.log-line:last-child').textContent`)).includes('……'));
-  expect('会話後は盗み聞きを案内する', await evaluate(`kara.tutorial.step === 1`));
+  expect('会話後はお出掛けを案内する', await evaluate(`kara.tutorial.step === 1`));
+  expect('無言を体験したあとで理由を説明する', await evaluate(`kara.tutorial.reflection === 'first-talk' && document.querySelector('.tutorial').textContent.includes('何も話してくれませんでしたね')`));
+  await shot('2-first-reflection.png');
+  await load();
+  await clickOn('.title-start');
+  expect('体験後の説明も再読み込みで失われない', await evaluate(`kara.tutorial.reflection === 'first-talk'`));
+  await clickOn('.tutorial button');
+  expect('説明を読んだあとドアを押す案内が出る', await evaluate(`!kara.tutorial.reflection && document.querySelector('.tutorial').textContent.includes('ドアを') && !document.querySelector('.tutorial-target').hidden`));
 
-  // 盗み聞き（お手本を入れて、まちの ひろば へ）
+  // お出掛け（お手本を入れて、まちの ひろば へ）
   await action('listen');
+  expect('お出掛けという名前で案内する', await evaluate(`document.querySelector('.listen-sign').textContent === 'お出掛けのしおり' && document.querySelector('.listen-go').textContent.includes('お出掛けする')`));
   await clickOn('.listen-sample');
   await shot('2-listen-input.png');
   await clickOn('.listen-go');
   const cutStart = Date.now();
   while (!await evaluate(`!!document.querySelector('.journey-cut.is-visible[data-destination="plaza"]')`)) {
-    if (Date.now() - cutStart > 20000) throw new Error('お出かけのカットインが出ない');
+    if (Date.now() - cutStart > 20000) throw new Error('お出掛けのカットインが出ない');
     await sleep(80);
   }
   await sleep(550);
@@ -195,7 +206,9 @@ try {
   expect('帰宅のカットインも出る', capturedReturn);
   expect('聞いた文が短期記憶にたまる', s.mem.length > 0, s.mem.join(' / '));
   expect('眠る前は集計表が変わらない', s.rows === 0);
-  expect('盗み聞き後は睡眠を案内する', await evaluate(`kara.tutorial.step === 2`));
+  expect('お出掛け後は睡眠を案内する', await evaluate(`kara.tutorial.step === 2`));
+  expect('お出掛け後にかごの意味を説明する', await evaluate(`kara.tutorial.reflection === 'heard'`));
+  await clickOn('.tutorial button');
 
   // 睡眠（夢の中で学習）
   await action('sleep');
@@ -208,6 +221,8 @@ try {
   expect('眠ると集計表が増え、短期記憶が空になる', s.rows > 0 && s.mem.length === 0 && s.sleeps === 1, `行 ${s.rows}`);
   await shot('5-woke.png');
   expect('起床後は再度会話を案内する', await evaluate(`kara.tutorial.step === 3`));
+  expect('睡眠後に学習を説明する', await evaluate(`kara.tutorial.reflection === 'slept'`));
+  await clickOn('.tutorial button');
 
   // 会話（学習後）
   await action('talk');
@@ -217,7 +232,9 @@ try {
   await done();
   const reply = await evaluate(`document.querySelector('.log-line:last-child').textContent`);
   expect('学習後は言葉を返す', !reply.includes('……'), reply);
-  expect('初日の案内が完了する', await evaluate(`kara.tutorial.step === 4 && document.querySelector('.tutorial').hidden`));
+  expect('最後の会話後に振り返りを表示する', await evaluate(`kara.tutorial.step === 4 && kara.tutorial.reflection === 'replied'`));
+  await clickOn('.tutorial button');
+  expect('振り返りを閉じると初日の案内が完了する', await evaluate(`document.querySelector('.tutorial').hidden && document.querySelector('.tutorial-target').hidden`));
   await shot('7-replied.png');
 
   // 頭の中を見る

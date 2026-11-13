@@ -69,7 +69,7 @@ export function createTalk(root, { model, mind, show, run, complete }) {
       const heard = [...model.hear(text).trace];
       if (result.text !== EMPTY_REPLY) heard.push(...model.hear(result.text).trace);
       await show(heard);
-      complete('talk');
+      complete('talk', result.text);
     }).then(focus);
   });
 }

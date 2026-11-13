@@ -374,3 +374,40 @@ button.person-icon:hover { background: #f0e4cb; }
 @keyframes journey-step { 0%, 65%, 100% { opacity: .2; } 25% { opacity: 1; } }
 @media (max-width: 640px) { .logo { font-size: 15px; }.logo small { font-size: 8px; }.journey-card { width: 100%; padding: 24px 18px; }.journey-brand { margin-bottom: 36px; }.journey-route { gap: 12px; }.journey-trail { gap: 8px; }.journey-title { letter-spacing: 0; } }
 @media (prefers-reduced-motion: reduce) { .journey-cut, .journey-card { transition: none; }.is-visible .journey-trail i { animation: none; opacity: .7; } }
+/* 描き下ろしの絵で迎えるタイトル */
+.title-screen { position: absolute; inset: 0; z-index: 10; overflow: hidden; background: #f4e4c9; color: #514a38; }
+.title-art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 58% 55%; }
+.title-screen::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, #fff7e6c9, #fff7e655 35%, transparent 60%); pointer-events: none; }
+.title-copy { position: absolute; z-index: 1; top: 17%; left: 7%; text-shadow: 0 2px 14px #fff8e2; }
+.title-eyebrow { font-size: 14px; letter-spacing: .15em; margin: 0 0 24px; }
+.title-copy h1 { font-size: clamp(42px, 5vw, 76px); line-height: 1.2; letter-spacing: .06em; margin: 0; font-family: 'Yu Mincho', 'Hiragino Mincho ProN', serif; font-weight: 700; }
+.title-copy h1 span { display: block; font-size: 1.35em; letter-spacing: .18em; color: #526b4b; margin-top: 6px; }
+.title-tagline { font-size: 18px; line-height: 1.9; letter-spacing: .16em; margin-top: 26px; }
+.title-entry { position: absolute; z-index: 1; left: 7%; bottom: 10%; text-align: center; width: 300px; max-width: 86%; }
+.title-start { min-width: 230px; max-width: 100%; min-height: 58px; padding: 14px 30px; border-radius: 32px; border: 1px solid #fff5d6; background: #55734c; color: #fff8e8; font-weight: 700; font-size: 19px; letter-spacing: .16em; box-shadow: 0 5px 0 #385137, 0 10px 30px #423b3333; }
+.title-start:hover:not(:disabled) { background: #638258; transform: translateY(-2px); }
+.title-start:disabled { font-size: 14px; opacity: .8; cursor: wait; }
+.title-status { font-size: 12px; line-height: 1.6; text-shadow: 0 1px 7px #fff8e8, 0 0 5px #fff8e8; }
+.journey-card { width: min(800px, 96%); padding: 20px 28px; }
+.journey-brand { margin-bottom: 14px; }
+.journey-painting { margin: 14px auto 20px; width: min(660px, 100%); aspect-ratio: 3 / 2; max-height: 52vh; border: 7px solid #fff9ec; border-radius: 7px; box-shadow: 0 12px 30px #51432e26; transform: rotate(-1deg); overflow: hidden; background: #e8d9bc; }
+.journey-art { display: block; width: 100%; height: 100%; object-fit: cover; }
+.journey-art-home { display: none; }
+.journey-cut[data-destination="home"] .journey-art-home { display: block; }
+.journey-cut[data-destination="home"] .journey-art-plaza { display: none; }
+.journey-route { margin: 18px 0; }
+@media (max-width: 640px) {
+ .title-screen::after { background: linear-gradient(#fff7e67a, transparent 45%, transparent 75%, #fff7e6bb); }
+ .title-copy { left: 7%; top: max(48px, 8%); }
+ .title-copy h1 { font-size: 42px; }
+ .title-eyebrow { font-size: 11px; letter-spacing: .08em; margin-bottom: 12px; }
+ .title-tagline { font-size: 13px; margin-top: 12px; line-height: 1.8; }
+ .title-entry { left: 50%; transform: translateX(-50%); bottom: max(24px, 5%); width: 300px; }
+ .journey-card { padding: 18px 12px; }
+ .journey-painting { border-width: 5px; margin: 18px auto 24px; }
+ .journey-brand { margin-bottom: 22px; }
+}
+@media (max-height: 560px) and (min-width: 641px) {
+ .title-copy { top: 8%; }.title-copy h1 { font-size: 38px; }.title-tagline { font-size: 13px; margin-top: 12px; }.title-entry { bottom: 5%; }
+ .journey-card { padding: 8px; }.journey-brand, .journey-footer { display: none; }.journey-painting { max-height: 48vh; margin: 8px auto; }.journey-title { font-size: 22px; }.journey-route { margin: 10px 0; }
+}

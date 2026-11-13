@@ -89,7 +89,8 @@ try {
   await send('Network.enable');
   await send('Emulation.setDeviceMetricsOverride', { width: MOBILE ? 390 : 1600, height: MOBILE ? 844 : 900, deviceScaleFactor: 1, mobile: MOBILE });
   if (MOBILE) await send('Emulation.setTouchEmulationEnabled', { enabled: true });
-  const url = PUBLISHED ? 'https://sikimu.github.io/kara-model/' : `http://127.0.0.1:${PORT}/index.html`;
+  const release = (await readFile(path.join(ROOT, 'index.html'), 'utf8')).match(/name="app-version" content="([^"]+)"/)[1];
+  const url = PUBLISHED ? `https://sikimu.github.io/kara-model/?v=${release}` : `http://127.0.0.1:${PORT}/index.html`;
   console.log(`確認先: ${url} (${MOBILE ? '390x844 / touch' : '1600x900 / mouse'})`);
   const load = async () => {
     await send('Page.navigate', { url });
@@ -141,6 +142,13 @@ try {
   };
   const state = () => evaluate(`JSON.stringify({ rows: Object.keys(kara.store).length, mem: kara.shortMemory, sleeps: kara.stats.sleeps })`).then(JSON.parse);
 
+  expect('初回はタイトル画面とはじめるを表示する', await evaluate(`!document.querySelector('.title-screen').hidden && document.querySelector('.title-start').textContent === 'はじめる'`));
+  expect('検証対象の最新版を読み込んでいる', await evaluate(`document.querySelector('meta[name="app-version"]').content === ${JSON.stringify(release)}`));
+  expect('コード・スタイル・3D素材のURLに版番号が付いている', await evaluate(`performance.getEntriesByType('resource').filter(e => { const u = new URL(e.name); return u.origin === location.origin && /\\.(js|css|glb)$/.test(u.pathname); }).every(e => new URL(e.name).searchParams.get('v') === ${JSON.stringify(release)})`));
+  expect('タイトルの描き下ろし画像を読み込める', await evaluate(`document.querySelector('.title-art').complete && document.querySelector('.title-art').naturalWidth > 0`));
+  await shot('0-title.png');
+  await clickOn('.title-start');
+  expect('開始ボタンで部屋に入れる', await evaluate(`document.querySelector('.title-screen').hidden`));
   expect('起動して操作できる', (await busy()) === false);
   expect('ゲームタイトルを表示する', await evaluate(`document.title.startsWith('からっぽのコト') && document.querySelector('.logo').textContent.includes('からっぽのコト')`));
   expect('初日は会話から案内する', await evaluate(`kara.tutorial.step === 0 && !document.querySelector('.tutorial').hidden`));
@@ -173,6 +181,7 @@ try {
   await sleep(550);
   await shot('3-departure-cutin.png');
   expect('外への移動に行き先のカットインが出る', await evaluate(`document.querySelector('.journey-to').textContent === 'まちの ひろば'`));
+  expect('カットインの描き下ろし画像を読み込める', await evaluate(`[...document.querySelectorAll('.journey-art')].every(i => i.complete && i.naturalWidth > 0)`));
   await sleep(SLOW ? 9000 : 4000);
   await shot('3-plaza.png');
   await done();
@@ -255,6 +264,9 @@ try {
   await shot('12-chips.png');
   await clickOn('.settings-close');
   await load();
+  expect('保存後はタイトル画面につづきからを表示する', await evaluate(`!document.querySelector('.title-screen').hidden && document.querySelector('.title-start').textContent === 'つづきから'`));
+  await shot('13-continue.png');
+  await clickOn('.title-start');
   s = await state();
   expect('読み込み直しても育てた状態が残る', s.rows > 0 && s.sleeps === 1);
   expect('チップと温度、初日の完了が保存される', await evaluate(`kara.chips.sampler.id === 'sampler-temperature' && kara.options.temperature === 0.5 && kara.tutorial.step === 4`));

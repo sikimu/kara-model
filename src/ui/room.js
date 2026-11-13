@@ -132,10 +132,11 @@ export async function createRoom(root) {
   scene.add(hemi, sun, sun.target, lamp);
 
   const loader = new GLTFLoader();
+  const version = document.querySelector('meta[name="app-version"]')?.content ?? 'dev';
   const [roomGltf, charGltf, npcGltf] = await Promise.all([
-    loader.loadAsync('./assets/room.glb'),
-    loader.loadAsync('./assets/character.glb'),
-    loader.loadAsync('./assets/npc.glb'),
+    loader.loadAsync(`./assets/room.glb?v=${version}`),
+    loader.loadAsync(`./assets/character.glb?v=${version}`),
+    loader.loadAsync(`./assets/npc.glb?v=${version}`),
   ]);
   for (const gltf of [roomGltf, charGltf, npcGltf]) {
     gltf.scene.traverse((o) => {
@@ -211,24 +212,7 @@ export async function createRoom(root) {
   curtain.innerHTML = `<div class="journey-card">
     <span class="journey-brand">からっぽのコト</span>
     <span class="journey-kicker"></span>
-    <svg class="journey-picture" viewBox="0 0 480 230" aria-hidden="true">
-      <circle class="journey-sun" cx="362" cy="48" r="27" fill="#f3d58b"/>
-      <g fill="#fffdf5"><path d="M62 52c-8-24 31-35 40-15 18-10 36 9 25 23H65Z"/><path d="M280 32c-8-20 24-30 32-12 18-7 27 8 20 18h-50Z"/></g>
-      <path d="M0 166Q99 63 227 166Q355 81 480 155V230H0Z" fill="#c4d7a7"/>
-      <path d="M0 199Q133 119 275 190Q386 135 480 177V230H0Z" fill="#8eae7b"/>
-      <path d="M213 230Q294 201 258 163" fill="none" stroke="#f8edce" stroke-width="31"/>
-      <g class="journey-town">
-        <rect x="137" y="102" width="94" height="84" rx="5" fill="#f8ebce"/><path d="M128 106V89h112v17Z" fill="#d68b71"/>
-        <path d="M133 119h102l7 21H126Z" fill="#d68b71"/><path d="m149 119-3 21m28-21-1 21m28-21 1 21m23-21 4 21" stroke="#fff5df" stroke-width="10"/>
-        <rect x="150" y="148" width="23" height="38" rx="2" fill="#9e7957"/><rect x="185" y="148" width="30" height="24" rx="3" fill="#afccd0"/>
-        <rect x="257" y="87" width="83" height="97" rx="5" fill="#eaf0df"/><path d="M246 91V74h105v17Z" fill="#739aa2"/>
-        <path d="M252 110h94l6 19H246Z" fill="#739aa2"/><path d="m268 110-2 19m27-19v19m27-19 2 19" stroke="#fff5df" stroke-width="10"/>
-        <rect x="272" y="139" width="22" height="45" rx="3" fill="#9e7957"/><rect x="305" y="139" width="24" height="25" rx="3" fill="#afccd0"/>
-      </g>
-      <g class="journey-house"><rect x="185" y="105" width="110" height="82" rx="6" fill="#fff2d6"/><path d="m166 111 74-65 74 65Z" fill="#ba8067"/><rect x="207" y="133" width="28" height="54" rx="5" fill="#9b7657"/><rect x="251" y="129" width="26" height="26" rx="4" fill="#f3d58b"/><path d="M264 130v24m-12-12h24" stroke="#fff4d9" stroke-width="3"/></g>
-      <g fill="#5e855e"><rect x="81" y="148" width="9" height="44" fill="#917855"/><circle cx="85" cy="127" r="29"/><circle cx="68" cy="147" r="21"/><circle cx="103" cy="145" r="23"/>
-      <rect x="386" y="152" width="8" height="43" fill="#917855"/><circle cx="389" cy="136" r="27"/><circle cx="373" cy="152" r="18"/><circle cx="407" cy="151" r="20"/></g>
-    </svg>
+    <div class="journey-painting"><img class="journey-art journey-art-plaza" src="./assets/journey-plaza.png?v=${version}" alt="???????????????????"><img class="journey-art journey-art-home" src="./assets/journey-home.png?v=${version}" alt="???????????????????"></div>
     <h2 class="journey-title"></h2><p class="journey-note"></p>
     <div class="journey-route"><span class="journey-from"></span><span class="journey-trail" aria-hidden="true"><i>●</i><i>●</i><i>●</i><i>●</i><i>●</i></span><span class="journey-to"></span></div>
     <span class="journey-footer">聞いて、眠って、ことばが育つ。</span>

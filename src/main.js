@@ -175,10 +175,33 @@ const model = createModel();
 const saved = load();
 if (saved) model.restore(saved);
 
+// 読み込み中からタイトルを表示し、部屋の操作は開始ボタンを押したあとに有効にする。
+let started = false;
+const titleScreen = document.createElement('section');
+titleScreen.className = 'title-screen';
+titleScreen.setAttribute('aria-labelledby', 'game-title');
+const release = document.querySelector('meta[name="app-version"]')?.content ?? 'dev';
+titleScreen.innerHTML = `<img class="title-art" src="./assets/journey-home.png?v=${release}" alt="青いマフラーのコトが、聞いたことばをかごに入れて家に帰る夕暮れの庭">
+  <div class="title-copy"><p class="title-eyebrow">ことばを知らない、きみと暮らす。</p>
+  <h1 id="game-title">からっぽの<span>コト</span></h1>
+  <p class="title-tagline">聞いて、眠って、<br>ことばが育つ。</p></div>
+  <div class="title-entry"><button class="title-start" type="button" disabled>おうちを準備しています…</button>
+  <p class="title-status" role="status">まもなく、コトに会えます。</p></div>`;
+app.append(titleScreen);
+const startButton = titleScreen.querySelector('.title-start');
+const titleStatus = titleScreen.querySelector('.title-status');
+stageRoot.inert = true;
+hud.inert = true;
+logo.hidden = true;
+
 let mind;
 try {
   mind = await createStage(stageRoot, model);
 } catch (e) {
+  titleStatus.textContent = 'おうちを読み込めませんでした。通信を確認して、もう一度お試しください。';
+  startButton.textContent = 'もう一度読み込む';
+  startButton.disabled = false;
+  startButton.addEventListener('click', () => location.reload());
   stageRoot.textContent = '3D の部屋を読み込めませんでした。通信を確認して、読み込み直してください。';
   throw e;
 }
@@ -244,7 +267,7 @@ syncChip();
 
 function refresh() {
   const lesson = lessons[model.tutorial.step];
-  guide.hidden = busy || !lesson || openPart !== null;
+  guide.hidden = !started || busy || !lesson || openPart !== null;
   if (lesson) {
     guideTitle.textContent = `はじめの一日 · ${model.tutorial.step + 1} / 4　${lesson[1]}`;
     guideText.textContent = lesson[2];
@@ -253,7 +276,7 @@ function refresh() {
   chipSelect.disabled = busy;
   temperature.disabled = busy;
   app.dataset.busy = String(busy);
-  mind.setInteractive(!busy);
+  mind.setInteractive(started && !busy);
   dock.hidden = busy || openPart === null;
   for (const [id, root] of Object.entries(partRoots)) root.hidden = id !== openPart;
   homeButton.hidden = !exploring;
@@ -338,11 +361,24 @@ mind.onAction((id) => {
   }
 });
 document.addEventListener('keydown', (ev) => {
-  if (ev.key !== 'Escape' || settings.open) return;
+  if (!started || ev.key !== 'Escape' || settings.open) return;
   if (exploring) void toggleExplore();
   else if (!busy) setPart(null);
 });
 
+startButton.textContent = saved ? 'つづきから' : 'はじめる';
+titleStatus.textContent = saved ? 'コトとの暮らしは、ここからつづきます。' : '小さな出会いから、はじめよう。';
+startButton.disabled = false;
+startButton.addEventListener('click', () => {
+  started = true;
+  titleScreen.hidden = true;
+  stageRoot.inert = false;
+  hud.inert = false;
+  logo.hidden = false;
+  refresh();
+  if (model.tutorial.step < 4) guideButton.focus({ preventScroll: true });
+  else settingsButton.focus({ preventScroll: true });
+});
 refresh();
 
 // コンソールから確認できるように公開する

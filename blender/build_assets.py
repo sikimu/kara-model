@@ -420,6 +420,21 @@ def build_room():
     box('bench_back', S(1.6, 0.4, 0.07), wood, T(0, 0.85, -0.2), parent=bench, bevel=0.02)
     for i, x in enumerate((-0.65, 0.65)):
         box(f'bench_leg{i}', S(0.08, 0.45, 0.4), wood_dark, T(x, 0.225, 0), parent=bench, bevel=0.01)
+    # 絵の広場と揃えた小さな噴水。会話の輪と歩く道は空ける。
+    fountain = empty('fountain', T(px + 1.9, 0, -1.15))
+    fountain_stone = mat('fountain_stone', (0.85, 0.82, 0.7), rough=0.85)
+    water = mat('fountain_water', (0.57, 0.81, 0.85), rough=0.2)
+    cone('fountain_base', 0.61, 0.57, 0.18, fountain_stone, T(0, 0.09, 0), parent=fountain)
+    cone('fountain_basin', 0.53, 0.55, 0.19, fountain_stone, T(0, 0.24, 0), parent=fountain)
+    cone('fountain_pool', 0.48, 0.48, 0.025, water, T(0, 0.342, 0), parent=fountain)
+    cone('fountain_column', 0.14, 0.1, 0.55, fountain_stone, T(0, 0.55, 0), parent=fountain)
+    cone('fountain_upper', 0.19, 0.31, 0.13, fountain_stone, T(0, 0.86, 0), parent=fountain)
+    cone('fountain_upper_water', 0.26, 0.26, 0.02, water, T(0, 0.93, 0), parent=fountain)
+    sphere('fountain_drop', 0.08, water, T(0, 1.02, 0), scale=(0.7, 0.7, 1.7), parent=fountain)
+    for i in range(6):
+        a = i * math.tau / 6
+        sphere(f'fountain_stream{i}', 0.04, water, T(math.cos(a) * 0.27, 0.64, math.sin(a) * 0.27),
+               scale=(0.7, 0.7, 7.0), parent=fountain, seg=12)
     x = px - PW / 2 + 0.2
     i = 0
     while x < px + PW / 2:

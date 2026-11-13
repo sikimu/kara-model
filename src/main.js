@@ -5,6 +5,7 @@ import { createMind } from './ui/mind.js';
 import { createTalk } from './ui/talk.js';
 import { createListen } from './ui/listen.js';
 import { createSleep } from './ui/sleep.js';
+import { save, load, clear } from './save.js';
 
 // 演出の速度。値は 1 手順あたりの待ち時間（ミリ秒）。0 は再生しない
 const SPEEDS = [
@@ -58,7 +59,10 @@ tabs.className = 'tabs';
 app.replaceChildren(top, mindRoot, bottom);
 
 const model = createModel();
+const saved = load();
+if (saved) model.restore(saved);
 const mind = createMind(mindRoot);
+mind.syncMemory(model.shortMemory);
 
 let busy = false;
 async function run(fn) {
@@ -68,6 +72,7 @@ async function run(fn) {
   try {
     await fn();
   } finally {
+    save(model);
     bottom.disabled = false;
     busy = false;
   }
@@ -83,7 +88,14 @@ async function show(trace, onSkip) {
   }
 }
 
-const ctx = { model, mind, show, run };
+// 最初からやり直す。セーブを消して読み込み直す
+function reset() {
+  if (!confirm('育てた中身をすべて消して、最初からやり直しますか？')) return;
+  clear();
+  location.reload();
+}
+
+const ctx = { model, mind, show, run, reset };
 const partRoots = PARTS.map((part) => {
   const root = document.createElement('section');
   root.classList.add('part');
@@ -94,6 +106,7 @@ const partRoots = PARTS.map((part) => {
   tab.addEventListener('click', () => {
     for (const r of partRoots) r.hidden = r !== root;
     pressOnly(tabs, tab);
+    save(model); // パートを切り替えるたびに保存する
   });
   tabs.append(tab);
   return root;

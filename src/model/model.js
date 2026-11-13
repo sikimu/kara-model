@@ -23,6 +23,7 @@ export function createModel({ random = Math.random } = {}) {
   };
   const store = {};       // 集計表: 文脈キー → { 次の文字 → 回数 }
   const shortMemory = []; // 短期記憶（文の配列）
+  const stats = { sleeps: 0 };
 
   // 推論。入力文は切り分けるだけで、返事には影響しない（初期チップ構成の制約）
   function infer(text) {
@@ -77,8 +78,28 @@ export function createModel({ random = Math.random } = {}) {
       chips.learner.learn(store, [tokens], chips.context, trace);
       trace.push({ type: 'forget', text });
     }
+    stats.sleeps += 1;
     return { trace };
   }
 
-  return { chips, store, shortMemory, infer, hear, sleep };
+  // セーブ用に今の状態を取り出す
+  function snapshot() {
+    return {
+      store: structuredClone(store),
+      shortMemory: [...shortMemory],
+      chips: Object.fromEntries(Object.entries(chips).map(([slot, chip]) => [slot, chip.id])),
+      stats: { ...stats },
+    };
+  }
+
+  // snapshot() の形のデータで状態を置き換える
+  function restore(data) {
+    for (const key of Object.keys(store)) delete store[key];
+    Object.assign(store, structuredClone(data.store));
+    shortMemory.length = 0;
+    shortMemory.push(...data.shortMemory.slice(-MEMORY_CAPACITY));
+    stats.sleeps = data.stats?.sleeps ?? 0;
+  }
+
+  return { chips, store, shortMemory, stats, infer, hear, sleep, snapshot, restore };
 }

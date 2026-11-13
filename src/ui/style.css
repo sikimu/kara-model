@@ -293,3 +293,13 @@ html, body {
 
 /* 睡眠 */
 .sleep-button { padding: 14px; }
+.reset-button {
+  margin-top: auto;
+  align-self: center;
+  font-size: 0.8rem;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--sub);
+}

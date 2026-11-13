@@ -4,7 +4,7 @@
 
 ## 最小版
 
-- [ ] **S0 公開の土台**
+- [x] **S0 公開の土台**
   - 作るもの: `index.html`（タイトルだけ）、importmap、`src/main.js`
   - 完了条件: GitHub Pages の URL をスマホで開くとタイトルが出る
 

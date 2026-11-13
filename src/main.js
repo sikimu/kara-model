@@ -1,5 +1,7 @@
 // 起動と画面切り替え
 
+import { createModel } from './model/model.js';
+
 const app = document.getElementById('app');
 
 function showTitle() {
@@ -9,3 +11,6 @@ function showTitle() {
 }
 
 showTitle();
+
+// コンソールから確認できるように公開する（画面ができるまでの仮）
+window.kara = createModel();

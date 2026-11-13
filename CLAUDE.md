@@ -61,6 +61,8 @@ ES Modules は `file://` では動かない。VS Code の Live Server で `index
 変更したら `node tools/check.mjs` を実行する（`--mobile` で縦長画面とタップ操作、`--slow` でふつうの速度の演出を確認できる）。
 すべて OK になり、`tools/out/` の画面写真で見た目を確かめてからコミットする。ユーザーに確認手順を頼まない。
 
+公開更新時は push だけで完了としない。GitHub Pages のデプロイ成功を確認したあと、`node tools/check.mjs --published` と `node tools/check.mjs --published --mobile` で公開 URL を実際に操作し、`tools/out/published/` の画面写真も確認する。完了時は公開リンクを添える。
+
 glb を作り直すとき: `blender -b -P blender/build_assets.py`（Blender 5.3 で確認）
 
 ## 進め方（ユーザーの希望）

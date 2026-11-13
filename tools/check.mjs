@@ -2,6 +2,7 @@
 // 使い方: node tools/check.mjs            （PC の画面 1600x900）
 //         node tools/check.mjs --slow     （ふつうの速度で動かす。演出を画面写真で見たいとき）
 //         node tools/check.mjs --mobile   （スマホの縦長画面 390x844）
+//         node tools/check.mjs --published （GitHub Pages の公開サイトを確認）
 // 依存なし（Node 22 以上と Chrome が要る）。Chrome の場所は環境変数 CHROME で変えられる。
 // 終了コード: 画面のエラーや期待外れがあれば 1。
 
@@ -13,7 +14,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const OUT = path.join(ROOT, 'tools', 'out');
+const PUBLISHED = process.argv.includes('--published');
+const OUT = path.join(ROOT, 'tools', 'out', ...(PUBLISHED ? ['published'] : []));
 const PORT = process.argv.includes('--mobile') ? 8767 : 8766;
 const DEBUG_PORT = process.argv.includes('--mobile') ? 9335 : 9334;
 const CHROME = process.env.CHROME ?? 'C:/Program Files/Google/Chrome/Application/chrome.exe';
@@ -33,7 +35,8 @@ const server = createServer(async (req, res) => {
   } catch {
     res.writeHead(404).end();
   }
-}).listen(PORT, '127.0.0.1');
+});
+if (!PUBLISHED) server.listen(PORT, '127.0.0.1');
 
 const profile = path.join(os.tmpdir(), `kara-check-${process.pid}`);
 const chrome = spawn(CHROME, ['--headless=new', `--remote-debugging-port=${DEBUG_PORT}`, `--user-data-dir=${profile}`,
@@ -86,8 +89,17 @@ try {
   await send('Network.enable');
   await send('Emulation.setDeviceMetricsOverride', { width: MOBILE ? 390 : 1600, height: MOBILE ? 844 : 900, deviceScaleFactor: 1, mobile: MOBILE });
   if (MOBILE) await send('Emulation.setTouchEmulationEnabled', { enabled: true });
-  const url = `http://127.0.0.1:${PORT}/index.html`;
-  const load = async () => { await send('Page.navigate', { url }); await sleep(3500); };
+  const url = PUBLISHED ? 'https://sikimu.github.io/kara-model/' : `http://127.0.0.1:${PORT}/index.html`;
+  console.log(`確認先: ${url} (${MOBILE ? '390x844 / touch' : '1600x900 / mouse'})`);
+  const load = async () => {
+    await send('Page.navigate', { url });
+    await sleep(3500);
+    const started = Date.now();
+    while (!await evaluate(`!!window.kara && !!window.karaPoint`)) {
+      if (Date.now() - started > 30000) throw new Error('起動が完了しない');
+      await sleep(250);
+    }
+  };
 
   // まっさらな状態から始める。速度は --slow でなければ一番はやく
   await load();
@@ -255,9 +267,9 @@ try {
   if (logs.length) console.log(logs.join('\n'));
 } finally {
   chrome.kill();
-  server.close();
+  if (server.listening) server.close();
   await sleep(500);
   await rm(profile, { recursive: true, force: true }).catch(() => {});
 }
-console.log(problems.length ? `\n問題 ${problems.length} 件` : `\nすべて OK。画面写真: tools/out/`);
+console.log(problems.length ? `\n問題 ${problems.length} 件` : `\nすべて OK。画面写真: ${OUT}`);
 process.exit(problems.length ? 1 : 0);

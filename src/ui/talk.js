@@ -2,7 +2,7 @@
 
 import { EMPTY_REPLY } from '../model/model.js';
 
-export function createTalk(root, { model, mind, getStep }) {
+export function createTalk(root, { model, mind, show, run }) {
   root.classList.add('talk');
 
   const log = document.createElement('div');
@@ -30,31 +30,23 @@ export function createTalk(root, { model, mind, getStep }) {
     log.scrollTop = log.scrollHeight;
   }
 
-  form.addEventListener('submit', async (e) => {
+  form.addEventListener('submit', (e) => {
     e.preventDefault();
     const text = input.value.trim();
-    if (!text || input.disabled) return;
+    if (!text) return;
 
-    input.value = '';
-    input.disabled = true;
-    button.disabled = true;
-    addLine('you', text);
+    run(async () => {
+      input.value = '';
+      addLine('you', text);
 
-    const result = model.infer(text);
-    const step = getStep();
-    if (step > 0) {
-      await mind.play(result.trace, getStep);
-    } else {
-      mind.showIdle(); // 飛ばす: トレースを再生せず結果だけ使う
-    }
-    addLine('kara', result.text);
+      const result = model.infer(text);
+      await show(result.trace, () => mind.showIdle());
+      addLine('kara', result.text);
 
-    // やり取りは短期記憶に入る（無言の「……」は入れない）
-    model.hear(text);
-    if (result.text !== EMPTY_REPLY) model.hear(result.text);
-
-    input.disabled = false;
-    button.disabled = false;
-    input.focus();
+      // やり取りは短期記憶に入る（無言の「……」は入れない）
+      const heard = [...model.hear(text).trace];
+      if (result.text !== EMPTY_REPLY) heard.push(...model.hear(result.text).trace);
+      await show(heard);
+    }).then(() => input.focus());
   });
 }

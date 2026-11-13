@@ -59,7 +59,7 @@ export function createModel({ random = Math.random } = {}) {
 
   // 聞く。短期記憶にためるだけで、集計表は変えない
   function hear(text) {
-    const trace = [];
+    const trace = [{ type: 'hear', text }];
     shortMemory.push(text);
     while (shortMemory.length > MEMORY_CAPACITY) {
       trace.push({ type: 'forget', text: shortMemory.shift() });

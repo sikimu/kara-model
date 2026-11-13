@@ -3,6 +3,8 @@
 import { createModel } from './model/model.js';
 import { createMind } from './ui/mind.js';
 import { createTalk } from './ui/talk.js';
+import { createListen } from './ui/listen.js';
+import { createSleep } from './ui/sleep.js';
 
 // 演出の速度。値は 1 手順あたりの待ち時間（ミリ秒）。0 は再生しない
 const SPEEDS = [
@@ -12,8 +14,19 @@ const SPEEDS = [
 ];
 let speed = SPEEDS[1];
 
+const PARTS = [
+  { id: 'talk', name: '会話', create: createTalk },
+  { id: 'listen', name: '盗み聞き', create: createListen },
+  { id: 'sleep', name: '睡眠', create: createSleep },
+];
+
 const app = document.getElementById('app');
 
+function pressOnly(box, button) {
+  for (const b of box.children) b.setAttribute('aria-pressed', String(b === button));
+}
+
+// 上: タイトルと速度
 const top = document.createElement('header');
 top.className = 'top';
 const title = document.createElement('h1');
@@ -27,19 +40,66 @@ for (const s of SPEEDS) {
   b.setAttribute('aria-pressed', String(s === speed));
   b.addEventListener('click', () => {
     speed = s;
-    for (const other of speedBox.children) other.setAttribute('aria-pressed', String(other === b));
+    pressOnly(speedBox, b);
   });
   speedBox.append(b);
 }
 top.append(title, speedBox);
 
+// 中: 頭の中
 const mindRoot = document.createElement('section');
-const talkRoot = document.createElement('section');
-app.replaceChildren(top, mindRoot, talkRoot);
+
+// 下: パートとタブ。演出中は fieldset ごと操作できなくする
+const bottom = document.createElement('fieldset');
+bottom.className = 'bottom';
+const tabs = document.createElement('nav');
+tabs.className = 'tabs';
+
+app.replaceChildren(top, mindRoot, bottom);
 
 const model = createModel();
 const mind = createMind(mindRoot);
-createTalk(talkRoot, { model, mind, getStep: () => speed.step });
+
+let busy = false;
+async function run(fn) {
+  if (busy) return;
+  busy = true;
+  bottom.disabled = true;
+  try {
+    await fn();
+  } finally {
+    bottom.disabled = false;
+    busy = false;
+  }
+}
+
+// トレースを再生する。「飛ばす」のときは再生せず、結果だけ画面に合わせる
+async function show(trace, onSkip) {
+  if (speed.step > 0) {
+    await mind.play(trace, () => speed.step);
+  } else {
+    onSkip?.();
+    mind.syncMemory(model.shortMemory);
+  }
+}
+
+const ctx = { model, mind, show, run };
+const partRoots = PARTS.map((part) => {
+  const root = document.createElement('section');
+  root.classList.add('part');
+  part.create(root, ctx);
+  const tab = document.createElement('button');
+  tab.type = 'button';
+  tab.textContent = part.name;
+  tab.addEventListener('click', () => {
+    for (const r of partRoots) r.hidden = r !== root;
+    pressOnly(tabs, tab);
+  });
+  tabs.append(tab);
+  return root;
+});
+bottom.append(...partRoots, tabs);
+tabs.firstElementChild.click();
 
 // コンソールから確認できるように公開する
 window.kara = model;

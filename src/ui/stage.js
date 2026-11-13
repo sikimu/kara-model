@@ -143,7 +143,9 @@ export async function createStage(root, model) {
   }
 
   // ---- 短期記憶（かごの上の札） ----
-  const memSlot = (i) => new THREE.Vector3(P.basketTop.x - 0.5, P.basketTop.y + 0.2 + i * 0.36, P.basketTop.z);
+  // 札を積む場所。家ではかごの上、お出かけ中はキャラクターのそば（メモ）
+  let memBase = P.basketTop;
+  const memSlot = (i) => new THREE.Vector3(memBase.x - 0.5, memBase.y + 0.2 + i * 0.36, memBase.z);
   function memLabel(text) {
     const sprite = makeLabel(shorten(text, 9), { size: 0.3, border: '#9cc27c' });
     sprite.center.set(0, 0.5);
@@ -152,7 +154,7 @@ export async function createStage(root, model) {
   function updateMemCount() {
     if (memCount) remove(memCount);
     memCount = makeLabel(`短期記憶 ${mem.length}/${MEMORY_CAPACITY}`, { size: 0.24, bg: '#eef5e6', border: '#9cc27c' });
-    put(memCount, new THREE.Vector3(P.basketTop.x, 0.28, P.basketTop.z + 0.5));
+    put(memCount, new THREE.Vector3(memBase.x, memBase === P.basketTop ? 0.28 : memBase.y - 0.15, memBase.z + 0.5));
   }
   function restack(ms) {
     return Promise.all(mem.map((m, i) => fly(m.sprite, memSlot(i), ms, 0)));
@@ -328,9 +330,16 @@ export async function createStage(root, model) {
   async function goListen(count, getStep) {
     clearLines();
     caption.textContent = '外の話し声を聞きに行く';
-    room.setShot('world', getStep() * 3);
     await actor.walkTo(P.doorIn, getStep());
-    await actor.walkTo(P.doorOut, getStep());
+    // 場面転換: まちの ひろば へ。聞いた文のメモは、隠れ場所のそばに積む
+    await room.transition('まちの ひろば', getStep() * 2.5, () => {
+      room.setScene('plaza');
+      actor.root.position.copy(P.doorOut);
+      memBase = above(P.hide, 1.6, 0.9, 0.5);
+      mem.forEach((m, i) => m.sprite.position.copy(memSlot(i)));
+      updateMemCount();
+    });
+    caption.textContent = '';
     await actor.walkTo(P.hide, getStep(), Math.atan2(P.plaza.x - P.hide.x, P.plaza.z - P.hide.z));
     const step = getStep();
     const offset = count === 4 ? Math.PI / 4 : Math.PI / 2;
@@ -372,10 +381,16 @@ export async function createStage(root, model) {
     await Promise.all(npcs.filter((npc) => npc.visible).map((npc) => tween(step * 0.5, (k) => {
       npc.scale.setScalar(Math.max(0.001, 1 - ease(k)));
     }).then(() => { npc.visible = false; })));
-    caption.textContent = '';
-    room.setShot('house', getStep() * 3);
+    caption.textContent = 'おうちへ帰る';
     await actor.walkTo(P.doorOut, getStep());
-    await actor.walkTo(P.doorIn, getStep());
+    await room.transition('おうち', getStep() * 2.5, () => {
+      room.setScene('house');
+      actor.root.position.copy(P.doorIn);
+      memBase = P.basketTop;
+      mem.forEach((m, i) => m.sprite.position.copy(memSlot(i)));
+      updateMemCount();
+    });
+    caption.textContent = '';
     await actor.walkTo(P.home, getStep(), FRONT);
   }
 

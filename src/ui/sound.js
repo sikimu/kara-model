@@ -89,6 +89,11 @@ const now = () => ctx.currentTime;
 
 // ---- 効果音 ----
 const SFX = {
+  mindWin: (sec = 0.3) => {
+    [84, 88, 91].forEach((m, i) => tone(midi(m), { dur: sec * 0.35, vol: 0.12, at: now() + i * sec * 0.1 }));
+    noise({ dur: sec * 0.15, vol: 0.07, freq: 4200, q: 2 });
+  },
+  mindLand: (sec = 0.3) => tone(520, { type: 'triangle', dur: sec * 0.25, vol: 0.1, to: 780 }),
   // もわもわ（頭の中へ切り替わる）
   moya: () => {
     [0, 1, 2].forEach((i) => tone(midi(72 + i * 4), { dur: 0.2, vol: 0.14, to: midi(77 + i * 4), at: now() + i * 0.14 }));

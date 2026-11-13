@@ -17,6 +17,8 @@ export function createActor(room) {
   const eyeScaleY = eyes[0].scale.y;
   const footBase = feet.map((f) => f.position.clone());
 
+  root.scale.setScalar(1.25); // 画面で見やすい大きさにする
+
   const actor = {
     root,
     cheer: false,     // 両腕を上げる
@@ -39,6 +41,7 @@ export function createActor(room) {
     body.scale.set(1 - breath, 1 + breath, 1 - breath);
     sprout.rotation.z = Math.sin(t * 1.7) * 0.12;
     head.rotation.z = Math.sin(t * 0.9) * 0.04;
+    head.rotation.x = actor.lying ? 0 : -0.22; // カメラ（斜め上）のほうへ少し顔を上げる
     const blink = actor.eyesClosed || (t % 3.4) < 0.12;
     for (const e of eyes) e.scale.y = eyeScaleY * (blink ? 0.12 : 1);
 

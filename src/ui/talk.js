@@ -7,25 +7,41 @@ export function createTalk(root, { model, mind, show, run }) {
 
   const log = document.createElement('div');
   log.className = 'log';
+  log.setAttribute('role', 'log');
+  log.setAttribute('aria-label', '空モデルとの会話');
 
   const form = document.createElement('form');
   form.className = 'talk-form';
   const input = document.createElement('input');
   input.type = 'text';
-  input.placeholder = '話しかける';
+  input.placeholder = 'ねえ、きょうはどんな気分？';
+  input.setAttribute('aria-label', '空モデルに話しかける言葉');
   input.maxLength = 40;
   input.autocomplete = 'off';
   const button = document.createElement('button');
   button.type = 'submit';
   button.textContent = '話す';
-  form.append(input, button);
+  const bubble = document.createElement('div');
+  bubble.className = 'input-bubble';
+  bubble.append(input);
+  form.append(bubble, button);
 
   root.replaceChildren(log, form);
 
   function addLine(who, text) {
     const line = document.createElement('div');
     line.className = `log-line ${who}`;
-    line.textContent = text;
+    line.setAttribute('aria-label', `${who === 'kara' ? '空モデル' : 'あなた'}: ${text}`);
+    if (who === 'kara') {
+      const face = document.createElement('span');
+      face.className = 'kara-face';
+      face.setAttribute('aria-hidden', 'true');
+      face.textContent = '•ᴗ•';
+      line.append(face);
+    }
+    const message = document.createElement('span');
+    message.textContent = text;
+    line.append(message);
     log.append(line);
     log.scrollTop = log.scrollHeight;
   }

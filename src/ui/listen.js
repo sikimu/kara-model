@@ -17,12 +17,16 @@ export function createListen(root, { model, mind, show, run, getStep }) {
   counts.className = 'listen-counts';
   const hint = document.createElement('span');
   hint.className = 'part-hint';
-  hint.textContent = `1 行が 1 文。1 人目から順番に 1 文ずつ話す。おぼえていられるのは ${MEMORY_CAPACITY} 文まで`;
+  hint.textContent = `1 行ずつ順番にお話。記憶は ${MEMORY_CAPACITY} 文まで`;
   const go = document.createElement('button');
   go.type = 'button';
   go.className = 'listen-go';
   go.textContent = '聞きに行く';
-  head.append(label, counts, hint, go);
+  const sample = document.createElement('button');
+  sample.type = 'button';
+  sample.className = 'listen-sample';
+  sample.textContent = 'お手本を入れる';
+  head.append(label, counts, hint, sample, go);
 
   const people = document.createElement('div');
   people.className = 'listen-people';
@@ -30,6 +34,7 @@ export function createListen(root, { model, mind, show, run, getStep }) {
   for (let i = 0; i < MAX_PEOPLE; i++) {
     const box = document.createElement('label');
     box.className = 'listen-person';
+    box.style.setProperty('--person-color', mind.npcColors[i]);
     const name = document.createElement('span');
     name.textContent = `${i + 1} 人目`;
     name.style.borderColor = mind.npcColors[i];
@@ -54,6 +59,16 @@ export function createListen(root, { model, mind, show, run, getStep }) {
     counts.append(b);
   }
   setCount(count);
+  const samples = [
+    SAMPLES,
+    ['こんにちは\nおはなだね', 'こんにちは\nきれいだね', 'いいにおい\nそうだね', 'またみにこよう\nまたね'],
+    ['こんばんは\nおやすみ', 'おつきさまだ\nおやすみ', 'ほしもあるね\nまたあした', 'きらきらだね\nまたあした'],
+  ];
+  let sampleIndex = 0;
+  sample.addEventListener('click', () => {
+    areas.slice(0, count).forEach(({ area }, i) => { area.value = samples[sampleIndex][i]; });
+    sampleIndex = (sampleIndex + 1) % samples.length;
+  });
 
   root.replaceChildren(head, people);
 

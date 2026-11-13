@@ -10,9 +10,20 @@ export function createSleep(root, { model, mind, show, run }) {
   const button = document.createElement('button');
   button.type = 'button';
   button.className = 'sleep-button';
-  button.textContent = '眠らせる';
+  button.textContent = 'おやすみ';
 
-  root.replaceChildren(hint, button);
+  const card = document.createElement('div');
+  card.className = 'sleep-card';
+  const moon = document.createElement('span');
+  moon.className = 'sleep-moon';
+  moon.setAttribute('aria-hidden', 'true');
+  moon.innerHTML = '<svg viewBox="0 0 100 80"><path d="M60 9A30 30 0 1 0 78 57 29 29 0 0 1 60 9Z" fill="#f8d990"/><path d="m80 12 2 6 6 2-6 2-2 6-2-6-6-2 6-2ZM24 8l2 4 4 2-4 2-2 4-2-4-4-2 4-2Z" fill="#fff4d0"/></svg>';
+  const copy = document.createElement('div');
+  const title = document.createElement('strong');
+  title.textContent = '夢の中で、すこしずつ育つ。';
+  copy.append(title, hint);
+  card.append(moon, copy, button);
+  root.replaceChildren(card);
 
   button.addEventListener('click', () => {
     run(async () => {

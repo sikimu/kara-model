@@ -40,6 +40,8 @@ assets/character.glb  Blender から書き出したキャラクター
 assets/room.glb       Blender から書き出した家・広場・小物、立ち位置の目印
 assets/npc.glb        Blender から書き出した、広場で話す人
 blender/build_assets.py  assets/ の glb を作る Blender スクリプト
+docs/art/             デザイン画（キャラクターの形の正）
+tools/check.mjs       動作確認（ヘッドレス Chrome で通しで動かす）
 ```
 
 ## 作業ルール
@@ -56,4 +58,16 @@ blender/build_assets.py  assets/ の glb を作る Blender スクリプト
 
 ES Modules は `file://` では動かない。VS Code の Live Server で `index.html` を開く。
 
+変更したら `node tools/check.mjs` を実行する（`--slow` を付けると、ふつうの速度で動かして演出の画面写真を撮れる）。
+すべて OK になり、`tools/out/` の画面写真で見た目を確かめてからコミットする。ユーザーに確認手順を頼まない。
+
 glb を作り直すとき: `blender -b -P blender/build_assets.py`（Blender 5.3 で確認）
+
+## 進め方（ユーザーの希望）
+
+- 動作確認、コミット、push まで任されている。公開先は GitHub Pages（https://sikimu.github.io/kara-model/）
+- トークン節約のため Codex CLI を使ってよい（`codex exec --sandbox workspace-write -C . "依頼"`）。監督は Claude が行い、差分と画面を確認してから取り込む
+  - 向いている仕事: 画像生成（デザイン画）、範囲の決まった実装（触ってよいファイルを明記する）、ドキュメント更新
+  - 並行で走らせるときは、触るファイルが重ならないように分ける。10 分以上変更が出なければ止める
+- オープンソースや外部の素材・ツールは、導入前にユーザーへ相談する
+- 絵が要るときは、Codex にデザイン画を描かせ、それを見て Blender スクリプトで立体にする

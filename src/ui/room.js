@@ -158,7 +158,7 @@ export async function createRoom(root) {
   // カメラの構図。house: 家に寄る、world: 家と広場の全体
   const SHOTS = {
     house: { target: new THREE.Vector3(-1.6, 1.4, -0.1), halfW: 4.9, halfH: 4.5 },
-    world: { target: new THREE.Vector3(-3.25, 1.6, -0.2), halfW: 6.8, halfH: 4.5 },
+    plaza: { target: new THREE.Vector3(-4.6, 1.3, -0.3), halfW: 5.6, halfH: 4.3 },
   };
   const target = SHOTS.house.target.clone();
   let halfW = SHOTS.house.halfW;
@@ -178,6 +178,37 @@ export async function createRoom(root) {
   }
   new ResizeObserver(resize).observe(root);
   resize();
+
+  // 場面を切り替える。house: 家と庭、plaza: まちの ひろば（家の代わりにお店が見える）
+  const houseRoot = roomGltf.scene.getObjectByName('house_root');
+  const townRoot = roomGltf.scene.getObjectByName('town_root');
+  function setScene(name) {
+    const out = name === 'plaza';
+    houseRoot.visible = !out;
+    board.mesh.visible = !out;
+    townRoot.visible = out;
+    setShot(out ? 'plaza' : 'house', 0);
+  }
+
+  // 場面転換の幕。幕が閉じているあいだに fn を実行する
+  const curtain = document.createElement('div');
+  curtain.style.cssText = 'position:absolute;inset:0;z-index:4;display:grid;place-items:center;'
+    + 'background:#fdf3d8;color:#6b4a2b;font-size:2.4rem;font-weight:bold;letter-spacing:0.2em;'
+    + 'clip-path:circle(0% at 50% 50%);transition:clip-path 0.45s ease-in-out;pointer-events:none;';
+  root.append(curtain);
+  async function transition(title, ms, fn) {
+    curtain.textContent = title;
+    if (ms > 0) {
+      curtain.style.clipPath = 'circle(75% at 50% 50%)';
+      await wait(Math.max(ms, 500));
+    }
+    await fn();
+    if (ms > 0) {
+      await wait(ms * 1.2);
+      curtain.style.clipPath = 'circle(0% at 50% 50%)';
+      await wait(500);
+    }
+  }
 
   // 構図を切り替える（ms かけてなめらかに動かす）
   function setShot(name, ms) {
@@ -224,6 +255,8 @@ export async function createRoom(root) {
     renderer.render(scene, camera);
   });
 
+  setScene('house');
+
   // 昼と夜の切り替え。k: 0 = 昼、1 = 夜
   let nightNow = 0;
   function setNight(k) {
@@ -250,6 +283,8 @@ export async function createRoom(root) {
     onFrame: (fn) => frameHandlers.push(fn),
     setNight,
     setShot,
+    setScene,
+    transition,
     screenPos,
     fadeNight,
   };

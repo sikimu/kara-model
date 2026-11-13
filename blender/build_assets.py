@@ -138,57 +138,63 @@ def rnd(i, salt=0.0):
 #                    > armL / armR
 #             > footL / footR
 def build_character():
+    """主人公。形はデザイン画（docs/art/character-sheet.png）に合わせる"""
     reset()
-    skin = mat('skin', (0.98, 0.97, 0.93), rough=0.5)
-    belly = mat('belly', (1.0, 0.95, 0.84), rough=0.55)
-    dark = mat('eye_dark', (0.13, 0.12, 0.2), rough=0.15)
-    white = mat('eye_white', (1.0, 1.0, 1.0), rough=0.2)
-    pink = mat('pink', (0.99, 0.7, 0.72), rough=0.6)
-    mouth = mat('mouth', (0.75, 0.32, 0.36), rough=0.5)
-    shoe = mat('shoe', (0.45, 0.6, 0.82), rough=0.55)
-    scarf = mat('scarf', (0.36, 0.62, 0.9), rough=0.8)
-    stem = mat('stem', (0.5, 0.74, 0.42), rough=0.6)
-    leaf = mat('leaf_new', (0.62, 0.85, 0.45), rough=0.5)
+    skin = mat('skin', (0.995, 0.965, 0.9), rough=0.55)
+    dark = mat('eye_dark', (0.2, 0.13, 0.11), rough=0.12)
+    white = mat('eye_white', (1.0, 1.0, 1.0), rough=0.2, glow=0.3)
+    pink = mat('pink', (0.99, 0.72, 0.74), rough=0.7)
+    ear_in = mat('ear_in', (0.99, 0.78, 0.8), rough=0.7)
+    mouth = mat('mouth', (0.36, 0.22, 0.2), rough=0.5)
+    scarf = mat('scarf', (0.42, 0.62, 0.87), rough=0.85)
+    stem = mat('stem', (0.5, 0.7, 0.3), rough=0.6)
+    leaf = mat('leaf_new', (0.56, 0.76, 0.33), rough=0.55)
 
     root = empty('character', (0, 0, 0))
-    for side, x in (('L', -0.17), ('R', 0.17)):
-        foot = empty('foot' + side, T(x, 0.07, 0.05), root)
-        sphere('foot_mesh' + side, 0.125, shoe, (0, 0, 0), scale=(1, 1.4, 0.56), parent=foot)
-        sphere('foot_sole' + side, 0.12, white, T(0, -0.035, 0), scale=(1.02, 1.42, 0.3), parent=foot)
+    # 足（体と同じ色の、短くて丸い足）
+    for side, x in (('L', -0.125), ('R', 0.125)):
+        foot = empty('foot' + side, T(x, 0.11, 0.0), root)
+        sphere('foot_mesh' + side, 0.118, skin, (0, 0, 0), scale=(1.0, 1.12, 0.95), parent=foot)
 
+    # 体（下ぶくれの洋なし形）
     body = empty('body', T(0, 0.4, 0), root)
-    sphere('torso', 0.3, skin, (0, 0, 0), scale=(1, 0.92, 1.05), parent=body)
-    sphere('belly_patch', 0.2, belly, T(0, -0.03, 0.17), scale=(1, 0.5, 1.05), parent=body)
-    sphere('tail', 0.085, skin, T(0, -0.13, -0.29), parent=body)
-    # マフラー
-    sphere('scarf_ring', 0.27, scarf, T(0, 0.24, 0), scale=(1.1, 1.05, 0.3), parent=body)
-    sphere('scarf_knot', 0.075, scarf, T(0.17, 0.2, 0.2), parent=body)
-    box('scarf_tail', S(0.11, 0.24, 0.04), scarf, T(0.2, 0.07, 0.24), parent=body, bevel=0.015,
-        rot=RZ(-12))
-    # 腕（肩を中心に回して上げ下げする）
-    for side, x in (('L', -0.3), ('R', 0.3)):
-        arm = empty('arm' + side, T(x, 0.1, 0), body)
-        sphere('arm_mesh' + side, 0.085, skin, T(0, -0.09, 0), scale=(0.85, 0.85, 1.55), parent=arm)
-        sphere('hand' + side, 0.078, skin, T(0, -0.21, 0.01), parent=arm)
+    sphere('torso', 0.25, skin, T(0, 0.02, 0), scale=(1.0, 0.9, 1.1), parent=body)
+    sphere('hips', 0.285, skin, T(0, -0.1, 0), scale=(1.02, 0.9, 0.8), parent=body)
+    sphere('tail', 0.09, skin, T(0, -0.13, -0.28), parent=body)
+    # マフラー（首に巻いて、前に垂らす）
+    sphere('scarf_ring', 0.3, scarf, T(0, 0.15, 0), scale=(1.06, 1.0, 0.3), parent=body)
+    sphere('scarf_knot', 0.085, scarf, T(0.17, 0.12, 0.24), scale=(1.1, 0.8, 0.9), parent=body)
+    box('scarf_tail', S(0.14, 0.3, 0.05), scarf, T(0.19, -0.04, 0.27), parent=body, bevel=0.022,
+        rot=RZ(-8))
+    # 腕（肩を中心に回して上げ下げする。短くて先が丸い）
+    for side, x in (('L', -1), ('R', 1)):
+        arm = empty('arm' + side, T(x * 0.26, 0.07, 0), body)
+        sphere('arm_mesh' + side, 0.088, skin, T(x * 0.03, -0.12, 0), scale=(0.92, 0.92, 1.75),
+               parent=arm, rot=RZ(x * 12))
 
-    # 頭
+    # 頭（横に広く、少しつぶれた玉）
     head = empty('head', T(0, 0.46, 0), body)
-    sphere('head_mesh', 0.42, skin, (0, 0, 0), scale=(1.06, 1.0, 0.95), parent=head, seg=48)
+    sphere('head_mesh', 0.44, skin, (0, 0, 0), scale=(1.09, 0.95, 0.87), parent=head, seg=48)
     for side, x in (('L', -1), ('R', 1)):
-        sphere('ear' + side, 0.135, skin, T(x * 0.3, 0.32, -0.02), scale=(1, 0.6, 1), parent=head)
-        sphere('ear_in' + side, 0.08, pink, T(x * 0.3, 0.32, 0.045), scale=(1, 0.4, 1), parent=head)
-        eye = empty('eye' + side, T(x * 0.165, 0.02, 0.36), head)
-        sphere('eye_white' + side, 0.09, white, (0, 0, 0), scale=(1, 0.45, 1.18), parent=eye)
-        sphere('eye_iris' + side, 0.068, dark, T(0, 0, 0.02), scale=(1, 0.45, 1.18), parent=eye)
-        sphere('eye_light' + side, 0.022, white, T(0.022, 0.035, 0.05), parent=eye)
-        sphere('cheek' + side, 0.06, pink, T(x * 0.27, -0.09, 0.3), scale=(1, 0.35, 0.6), parent=head)
-    sphere('mouth', 0.03, mouth, T(0, -0.115, 0.385), scale=(1.5, 0.5, 0.7), parent=head)
-    # 頭のてっぺんの芽（まだ何も育っていないしるし）
-    sprout = empty('sprout', T(0, 0.4, 0), head)
-    cone('sprout_stem', 0.016, 0.012, 0.15, stem, T(0, 0.075, 0), parent=sprout)
+        sphere('ear' + side, 0.155, skin, T(x * 0.34, 0.27, -0.02), scale=(1, 0.55, 1), parent=head)
+        sphere('ear_in' + side, 0.095, ear_in, T(x * 0.34, 0.265, 0.045), scale=(1, 0.35, 1), parent=head)
+        # 目（大きな黒い目に、白い光が 2 つ）
+        eye = empty('eye' + side, T(x * 0.185, -0.02, 0.372), head)
+        sphere('eye_iris' + side, 0.088, dark, (0, 0, 0), scale=(0.84, 0.4, 1.1), parent=eye)
+        sphere('eye_light' + side, 0.028, white, T(0.022, 0.042, 0.034), scale=(1, 0.5, 1), parent=eye, seg=16)
+        sphere('eye_light2' + side, 0.013, white, T(-0.026, -0.036, 0.034), scale=(1, 0.5, 1), parent=eye, seg=12)
+        sphere('cheek' + side, 0.075, pink, T(x * 0.3, -0.125, 0.288), scale=(1.15, 0.25, 0.62), parent=head)
+    # 口もと（小さなふくらみと、ω の形の口）
+    sphere('muzzle', 0.09, skin, T(0, -0.115, 0.385), scale=(1.25, 0.6, 0.8), parent=head)
     for side, x in (('L', -1), ('R', 1)):
-        sphere('sprout_leaf' + side, 0.075, leaf, T(x * 0.075, 0.17, 0), scale=(1.25, 0.6, 0.3),
-               parent=sprout, rot=RZ(x * 28))
+        sphere('mouth' + side, 0.02, mouth, T(x * 0.021, -0.122, 0.438), scale=(1.2, 0.45, 0.75),
+               parent=head, seg=12)
+    # 頭のてっぺんの芽（双葉）。育つと大きくなる
+    sprout = empty('sprout', T(0, 0.37, 0), head)
+    cone('sprout_stem', 0.02, 0.016, 0.17, stem, T(0, 0.085, 0), parent=sprout)
+    for side, x in (('L', -1), ('R', 1)):
+        sphere('sprout_leaf' + side, 0.1, leaf, T(x * 0.125, 0.2, 0), scale=(1.45, 0.75, 0.3),
+               parent=sprout, rot=RZ(x * 20))
     export('character.glb')
 
 
@@ -216,6 +222,29 @@ def tree(name, x, z, scale=1.0):
     sphere(name + '_top2', 0.6, leaf_light, T(-0.5, 1.8, 0.2), parent=t)
     sphere(name + '_top3', 0.5, leaf, T(0.1, 2.75, -0.1), parent=t)
     return t
+
+
+def shop(name, x, z, color, sign):
+    """まちの ひろば に建つ小さなお店"""
+    wall = mat(name + '_wall', color, rough=0.9)
+    roof = mat(name + '_roof', sign, rough=0.8)
+    trim = mat('trim', (0.98, 0.97, 0.94), rough=0.8)
+    wood_dark = mat('wood_dark', (0.6, 0.44, 0.3))
+    s = empty(name, T(x, 0, z))
+    box(name + '_body', S(2.3, 1.9, 1.6), wall, T(0, 0.95, 0), parent=s, bevel=0.04)
+    box(name + '_roof', S(2.6, 0.28, 1.95), roof, T(0, 2.02, 0), parent=s, bevel=0.06)
+    box(name + '_roof2', S(2.0, 0.22, 1.4), roof, T(0, 2.25, 0), parent=s, bevel=0.06)
+    box(name + '_awning', S(2.4, 0.08, 0.7), roof, T(0, 1.42, 1.05), parent=s, bevel=0.02,
+        rot=(math.radians(-14), 0, 0))
+    box(name + '_door', S(0.55, 1.05, 0.06), wood_dark, T(-0.6, 0.53, 0.81), parent=s, bevel=0.02)
+    sphere(name + '_knob', 0.04, mat('knob', (0.95, 0.8, 0.3), metal=0.5, rough=0.3),
+           T(-0.42, 0.52, 0.85), parent=s, seg=12)
+    box(name + '_win_frame', S(0.95, 0.75, 0.06), trim, T(0.5, 0.85, 0.81), parent=s, bevel=0.02)
+    box(name + '_win', S(0.8, 0.6, 0.07), mat('glass', (0.7, 0.88, 0.98), rough=0.15, glow=0.4),
+        T(0.5, 0.85, 0.82), parent=s, bevel=0)
+    box(name + '_counter', S(1.0, 0.07, 0.25), wood_dark, T(0.5, 0.45, 0.92), parent=s, bevel=0.02)
+    box(name + '_sign', S(1.1, 0.34, 0.06), trim, T(0, 1.72, 0.82), parent=s, bevel=0.03)
+    return s
 
 
 def build_room():
@@ -323,6 +352,8 @@ def build_room():
     sphere('picture_sun', 0.13, mat('picture_sun', (0.95, 0.5, 0.35)), T(-W / 2 + 0.06, 2.4, -1.25),
            scale=(0.15, 1, 1))
 
+    house_names = {o.name for o in bpy.data.objects}
+
     # ---- 外の広場（盗み聞きの場所）。家の左どなり ----
     grass = mat('grass', (0.66, 0.83, 0.52), rough=0.95)
     grass_dark = mat('grass_dark', (0.58, 0.78, 0.47), rough=0.95)
@@ -381,6 +412,28 @@ def build_room():
         for i, (x, r) in enumerate(((0, 0.8), (-0.8, 0.55), (0.85, 0.6), (0.3, 0.6))):
             sphere(f'cloud{c}_{i}', r, cloud, T(cx + x, cy + (0.25 if i == 3 else 0), cz),
                    scale=(1.2, 1, 0.75), seg=16)
+
+    plaza_names = {o.name for o in bpy.data.objects} - house_names
+
+    # ---- まちの建物（お出かけの場面のときだけ、家の代わりに見せる） ----
+    box('town_ground', S(W + 0.6, 0.2, D), mat('town_ground', (0.9, 0.86, 0.76), rough=0.95),
+        T(0.1, -0.1, 0), bevel=0)
+    for i in range(1, 7):
+        box(f'town_line{i}', S(W + 0.6, 0.006, 0.03), stone, T(0.1, 0.003, -D / 2 + i * 0.95), bevel=0)
+    shop('shop_a', -1.2, -2.0, (0.99, 0.9, 0.78), (0.9, 0.5, 0.42))
+    shop('shop_b', 1.6, -2.0, (0.84, 0.92, 0.98), (0.4, 0.62, 0.86))
+    tree('tree_town', 2.2, 1.4, scale=0.75)
+    for i, (fx, fz) in enumerate(((-2.3, 0.4), (-0.2, 2.4), (0.9, -0.6), (2.6, -0.4))):
+        flower(20 + i, fx, fz)
+    town_names = {o.name for o in bpy.data.objects} - house_names - plaza_names
+
+    # 場面ごとにまとめる（three.js 側で表示を切り替える）
+    for root_name, names in (('house_root', house_names), ('plaza_root', plaza_names), ('town_root', town_names)):
+        group = empty(root_name, (0, 0, 0))
+        for n in names:
+            o = bpy.data.objects[n]
+            if o.parent is None:
+                o.parent = group
 
     # ---- 立ち位置などの目印 ----
     empty('at_home', T(0, 0, 0.5))

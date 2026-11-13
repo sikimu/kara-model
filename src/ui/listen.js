@@ -10,7 +10,13 @@ const SAMPLES = [
   ['こんばんは\nおやすみ', 'おつきさまだ\nおやすみ', 'ほしもあるね\nまたあした', 'きらきらだね\nまたあした'],
 ];
 
-export function createListen(root, { model, mind, show, run, getStep, close }) {
+export function createListen(root, { model, mind, show, run, complete, getStep, close }) {
+  const invitation = document.createElement('div');
+  invitation.className = 'listen-invitation';
+  invitation.innerHTML = '<span class="listen-sign">おでかけのしおり</span><h2>まちの ひろば</h2><p>お店の前で、だれかがおしゃべり。<br>そっと耳をすませて、言葉を持ち帰ろう。</p>';
+  const help = document.createElement('p');
+  help.className = 'listen-help';
+  help.textContent = '人数と言葉を決めよう。1 行がひとこと。本のボタンでお手本も入るよ。';
   // 上の段: 話す人（押した人数まで話す）、お手本、聞きに行く
   const head = document.createElement('div');
   head.className = 'listen-head';
@@ -40,7 +46,13 @@ export function createListen(root, { model, mind, show, run, getStep, close }) {
     area.placeholder = SAMPLES[0][i];
     area.rows = 2;
     area.setAttribute('aria-label', `${i + 1} 人目の言葉（1 行ずつ順番に話す）`);
-    box.append(face, area);
+    const name = document.createElement('span');
+    name.className = 'person-name';
+    name.textContent = ['パン屋さん', '花屋さん', '散歩中の人', '旅の人'][i];
+    const portrait = document.createElement('span');
+    portrait.className = 'person-portrait';
+    portrait.append(face, name);
+    box.append(portrait, area);
     people.append(box);
     areas.push({ box, area });
 
@@ -73,7 +85,7 @@ export function createListen(root, { model, mind, show, run, getStep, close }) {
     sampleIndex = (sampleIndex + 1) % SAMPLES.length;
   });
 
-  root.replaceChildren(head, people);
+  root.replaceChildren(invitation, help, head, people);
 
   go.addEventListener('click', () => {
     // 1 人目の 1 文目、2 人目の 1 文目、…、1 人目の 2 文目、… の順に話す
@@ -97,6 +109,7 @@ export function createListen(root, { model, mind, show, run, getStep, close }) {
         for (const { text } of script) model.hear(text);
         mind.showIdle();
         await show([]);
+        complete('listen');
         return;
       }
       await mind.goListen(count, getStep);
@@ -105,6 +118,7 @@ export function createListen(root, { model, mind, show, run, getStep, close }) {
       }
       await mind.comeBack(getStep);
       mind.syncMemory(model.shortMemory);
+      complete('listen');
     });
   });
 }

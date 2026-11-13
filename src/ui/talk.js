@@ -5,7 +5,7 @@ import { iconButton } from './icons.js';
 
 const LOG_LINES = 4; // 見せておくやり取りの数（会話ログは保存しない）
 
-export function createTalk(root, { model, mind, show, run }) {
+export function createTalk(root, { model, mind, show, run, complete }) {
   const log = document.createElement('div');
   log.className = 'log';
   log.setAttribute('role', 'log');
@@ -48,7 +48,7 @@ export function createTalk(root, { model, mind, show, run }) {
   }
 
   // 開いたら、すぐ打てるようにする（スマホではキーボードが画面を隠すので、押すまで出さない）
-  const focus = () => { if (matchMedia('(pointer: fine)').matches) input.focus(); };
+  const focus = () => { if (!root.hidden && matchMedia('(pointer: fine)').matches) input.focus(); };
   root.addEventListener('open', focus);
 
   form.addEventListener('submit', (e) => {
@@ -69,6 +69,7 @@ export function createTalk(root, { model, mind, show, run }) {
       const heard = [...model.hear(text).trace];
       if (result.text !== EMPTY_REPLY) heard.push(...model.hear(result.text).trace);
       await show(heard);
+      complete('talk');
     }).then(focus);
   });
 }

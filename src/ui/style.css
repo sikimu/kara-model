@@ -319,3 +319,29 @@ button.person-icon:hover { background: #f0e4cb; }
   .icon-button { transition: none; }
   .dock { animation: none; }
 }
+.tutorial { position: absolute; z-index: 3; left: 20px; bottom: 24px; width: min(360px, calc(100% - 40px)); padding: 18px 22px; background: #fffaf0f5; border: 1px solid #cfbb98; border-radius: 20px; box-shadow: 0 6px 24px #51463725; }
+.tutorial strong { color: #587447; font-size: 15px; }
+.tutorial p { font-size: 14px; line-height: 1.7; margin: 10px 0; }
+.tutorial button { padding: 9px 18px; border: 0; border-radius: 20px; background: #657f50; color: white; }
+.chip-settings { gap: 10px; }
+.chip-settings h3, .chip-settings p { margin: 0; }
+.chip-settings p { font-size: 13px; line-height: 1.6; }
+.chip-settings select { width: 100%; font: inherit; padding: 10px; border: 1px solid #bca883; border-radius: 10px; background: #fffaf0; }
+.chip-settings label { display: grid; gap: 6px; font-size: 13px; }
+.part.listen { background: #fff9ec; padding: 18px; }
+.listen-invitation { flex-shrink: 0; padding: 18px 24px; border-radius: 14px; background: radial-gradient(ellipse at 95% 110%, #76945f 0 20%, transparent 20.5%), radial-gradient(ellipse at 75% 120%, #a9bf84 0 28%, transparent 28.5%), linear-gradient(120deg, #e6f2ed, #d7e8dc); border: 1px solid #bdceae; }
+.listen-sign { color: #637e59; font-size: 11px; letter-spacing: .2em; }
+.listen-invitation h2 { margin: 4px 0 8px; font-size: 26px; color: #456345; }
+.listen-invitation p { font-size: 13px; line-height: 1.7; margin: 0; }
+.listen-help { font-size: 12px; margin: 0; line-height: 1.6; }
+.person-portrait { display: grid; justify-items: center; flex: 0 0 70px; gap: 4px; }
+.person-portrait .person-icon { display: block; width: 36px; }
+.person-name { font-size: 11px; white-space: nowrap; }
+.listen-person { padding: 10px; }
+@media (max-width: 640px) {
+ .tutorial { bottom: 14px; padding: 12px 16px; }
+ .listen-invitation { padding: 10px 16px; }
+ .listen-invitation h2 { font-size: 21px; }
+ .part.listen { padding: 12px; gap: 7px; }
+ .listen-people { flex: 1 1 auto; min-height: 85px; }
+}

@@ -168,7 +168,7 @@ export async function createRoom(root) {
   };
   let shot = 'house';
   const isTall = () => root.clientWidth < root.clientHeight * 0.8;
-  const dir = new THREE.Vector3(0, 0.66, 0.75).normalize();
+  const dir = new THREE.Vector3(0, 0.40, 0.92).normalize();
   const look = new THREE.Vector3();
   function resize() {
     const w = root.clientWidth;

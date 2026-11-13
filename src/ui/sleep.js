@@ -1,6 +1,6 @@
 // 睡眠。ベッドを押すと出る。短期記憶を再生して集計表を更新する。学習が起きるのはここだけ。
 
-export function createSleep(root, { model, mind, show, run, close }) {
+export function createSleep(root, { model, mind, show, run, complete, close }) {
   const moon = document.createElement('span');
   moon.className = 'sleep-moon';
   moon.setAttribute('aria-hidden', 'true');
@@ -30,6 +30,7 @@ export function createSleep(root, { model, mind, show, run, close }) {
       const count = model.shortMemory.length;
       const { trace } = model.sleep();
       await show(trace);
+      complete('sleep');
       mind.say(`ぐっすり眠った。${count} 文ぶん、おぼえた`);
     });
   });

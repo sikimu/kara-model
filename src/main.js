@@ -189,8 +189,69 @@ let busy = false;      // 演出中、または頭の中をのぞいている
 let exploring = false;
 let openPart = null;   // 開いている入力（'talk' | 'listen' | 'sleep' | null）
 const partRoots = {};
+const lessons = [
+  ['talk', 'はじめての会話', '「おはよう」と話しかけよう。まだ言葉を知らないので、返事は「……」。', '話しかける'],
+  ['listen', 'まちで言葉を聞こう', 'お手本を入れて聞きに行こう。聞いた言葉は、まだ一時的な記憶だよ。', '聞きに行く準備'],
+  ['sleep', '眠ると、おぼえる', 'ベッドでおやすみ。夢の中で聞いた言葉を思い出して、初めて学習するよ。', 'ベッドへ'],
+  ['talk', 'おはよう、もう一度', '初めての朝。もう一度話しかけて、眠る前と返事を比べてみよう。', 'もう一度話す'],
+];
+const guide = document.createElement('aside');
+guide.className = 'tutorial';
+guide.setAttribute('aria-live', 'polite');
+const guideTitle = document.createElement('strong');
+const guideText = document.createElement('p');
+const guideButton = document.createElement('button');
+guideButton.type = 'button';
+guideButton.addEventListener('click', () => setPart(lessons[model.tutorial.step][0]));
+guide.append(guideTitle, guideText, guideButton);
+app.append(guide);
+function complete(action) {
+  if (lessons[model.tutorial.step]?.[0] === action) {
+    model.tutorial.step++;
+    openPart = null;
+  }
+  if (action === 'sleep' && model.tutorial.step < 3) model.tutorial.step = 3;
+}
+const chipGroup = document.createElement('div');
+chipGroup.className = 'settings-group chip-settings';
+const chipTitle = document.createElement('h3');
+chipTitle.textContent = '選び方チップ';
+const chipSelect = document.createElement('select');
+chipSelect.setAttribute('aria-label', '選び方チップ');
+for (const chip of model.samplers) chipSelect.add(new Option(chip.name, chip.id));
+chipSelect.value = model.chips.sampler.id;
+const chipHint = document.createElement('p');
+const temperature = range(0.25, 2, 0.25, model.options.temperature, updateChip);
+temperature.setAttribute('aria-label', '温度');
+const temperatureLabel = document.createElement('label');
+const temperatureValue = document.createElement('span');
+temperatureLabel.append(temperatureValue, temperature);
+function updateChip() {
+  if (busy) return;
+  model.setSampler(chipSelect.value, Number(temperature.value));
+  syncChip();
+  save(model);
+}
+function syncChip() {
+  chipHint.textContent = model.chips.sampler.description;
+  temperatureLabel.hidden = model.chips.sampler.id !== 'sampler-temperature';
+  temperatureValue.textContent = `温度 ${model.options.temperature.toFixed(2)}（低い ← → 高い）`;
+}
+chipSelect.addEventListener('change', updateChip);
+chipGroup.append(chipTitle, chipSelect, chipHint, temperatureLabel);
+settings.insertBefore(chipGroup, resetButton);
+syncChip();
 
 function refresh() {
+  const lesson = lessons[model.tutorial.step];
+  guide.hidden = busy || !lesson || openPart !== null;
+  if (lesson) {
+    guideTitle.textContent = `はじめの一日 · ${model.tutorial.step + 1} / 4　${lesson[1]}`;
+    guideText.textContent = lesson[2];
+    guideButton.textContent = lesson[3];
+  }
+  chipSelect.disabled = busy;
+  temperature.disabled = busy;
   app.dataset.busy = String(busy);
   mind.setInteractive(!busy);
   dock.hidden = busy || openPart === null;
@@ -255,7 +316,7 @@ async function toggleExplore() {
 }
 homeButton.addEventListener('click', toggleExplore);
 
-const ctx = { model, mind, show, run, getStep, close: () => setPart(null) };
+const ctx = { model, mind, show, run, getStep, complete, close: () => setPart(null) };
 for (const part of PARTS) {
   const root = document.createElement('section');
   root.className = `part ${part.id}`;

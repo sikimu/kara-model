@@ -244,6 +244,30 @@ def shop(name, x, z, color, sign):
         T(0.5, 0.85, 0.82), parent=s, bevel=0)
     box(name + '_counter', S(1.0, 0.07, 0.25), wood_dark, T(0.5, 0.45, 0.92), parent=s, bevel=0.02)
     box(name + '_sign', S(1.1, 0.34, 0.06), trim, T(0, 1.72, 0.82), parent=s, bevel=0.03)
+    # 縞の日よけと店先の商品。文字を使わずパン屋と花屋を見分けられる。
+    for i in range(6):
+        box(name + f'_stripe{i}', S(0.19, 0.025, 0.69), trim,
+            T(-1.0 + i * 0.4, 1.47, 1.05), parent=s, bevel=0.005,
+            rot=(math.radians(-14), 0, 0))
+    box(name + '_display', S(1.15, 0.48, 0.55), wood_dark, T(0.5, 0.24, 1.38), parent=s)
+    if name == 'shop_a':
+        bread = mat('bread', (0.94, 0.68, 0.32))
+        for i in range(3):
+            sphere(name + f'_bread{i}', 0.16, bread, T(0.14 + i * 0.34, 0.58, 1.38),
+                   scale=(0.85, 1.4, 0.6), parent=s, seg=16)
+        sphere(name + '_bread_sign', 0.22, bread, T(0, 1.73, 0.87), scale=(1.7, 0.3, 0.48), parent=s)
+    else:
+        for i in range(3):
+            pot = mat('town_pot', (0.75, 0.43, 0.3))
+            cone(name + f'_pot{i}', 0.1, 0.14, 0.2, pot, T(0.16 + i * 0.34, 0.57, 1.38), parent=s)
+            for j in range(3):
+                sphere(name + f'_bloom{i}_{j}', 0.09, mat('town_bloom' + str(i),
+                       [(0.98, 0.65, 0.65), (0.99, 0.85, 0.38), (0.72, 0.65, 0.91)][i]),
+                       T(0.16 + i * 0.34 + (j - 1) * 0.08, 0.76 + (j % 2) * 0.08, 1.38), parent=s, seg=12)
+        for i in range(5):
+            a = i * math.tau / 5
+            sphere(name + f'_petal_sign{i}', 0.09, roof,
+                   T(math.cos(a) * 0.12, 1.73 + math.sin(a) * 0.12, 0.87), scale=(1, 0.3, 1), parent=s, seg=12)
     return s
 
 
@@ -434,6 +458,17 @@ def build_room():
         box(f'town_line{i}', S(W + 0.6, 0.006, 0.03), stone, T(0.1, 0.003, -D / 2 + i * 0.95), bevel=0)
     shop('shop_a', -1.2, -2.0, (0.99, 0.9, 0.78), (0.9, 0.5, 0.42))
     shop('shop_b', 1.6, -2.0, (0.84, 0.92, 0.98), (0.4, 0.62, 0.86))
+    # 店の前をつなぐお祭りのガーランド。
+    cord = mat('town_cord', (0.54, 0.45, 0.34))
+    for x in (-2.7, 2.9):
+        box('garland_post' + str(x), S(0.065, 2.8, 0.065), wood_dark, T(x, 1.4, -0.65))
+    for i in range(14):
+        x = -2.5 + i * 0.4
+        y = 2.75 - 0.35 * (1 - ((x - 0.1) / 2.8) ** 2)
+        box(f'garland_cord{i}', S(0.42, 0.025, 0.025), cord, T(x, y, -0.65), bevel=0)
+        box(f'garland_flag{i}', S(0.23, 0.28, 0.025),
+            mat('flag' + str(i % 3), [(0.93, 0.58, 0.46), (0.98, 0.82, 0.42), (0.48, 0.72, 0.73)][i % 3]),
+            T(x, y - 0.16, -0.65), bevel=0.015)
     tree('tree_town', 2.2, 1.4, scale=0.75)
     for i, (fx, fz) in enumerate(((-2.3, 0.4), (-0.2, 2.4), (0.9, -0.6), (2.6, -0.4))):
         flower(20 + i, fx, fz)

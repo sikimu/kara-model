@@ -124,6 +124,7 @@ try {
   const state = () => evaluate(`JSON.stringify({ rows: Object.keys(kara.store).length, mem: kara.shortMemory, sleeps: kara.stats.sleeps })`).then(JSON.parse);
 
   expect('起動して操作できる', (await busy()) === false);
+  expect('初日は会話から案内する', await evaluate(`kara.tutorial.step === 0 && !document.querySelector('.tutorial').hidden`));
   await shot('1-home.png');
   await clickOn('.settings-button');
   expect('設定を開ける', await evaluate(`document.querySelector('.settings').open`));
@@ -138,6 +139,7 @@ try {
   await shot('2-thinking.png');
   await done();
   expect('空の状態では「……」を返す', (await evaluate(`document.querySelector('.log-line:last-child').textContent`)).includes('……'));
+  expect('会話後は盗み聞きを案内する', await evaluate(`kara.tutorial.step === 1`));
 
   // 盗み聞き（お手本を入れて、まちの ひろば へ）
   await action('listen');
@@ -150,6 +152,7 @@ try {
   let s = await state();
   expect('聞いた文が短期記憶にたまる', s.mem.length > 0, s.mem.join(' / '));
   expect('眠る前は集計表が変わらない', s.rows === 0);
+  expect('盗み聞き後は睡眠を案内する', await evaluate(`kara.tutorial.step === 2`));
 
   // 睡眠（夢の中で学習）
   await action('sleep');
@@ -161,6 +164,7 @@ try {
   s = await state();
   expect('眠ると集計表が増え、短期記憶が空になる', s.rows > 0 && s.mem.length === 0 && s.sleeps === 1, `行 ${s.rows}`);
   await shot('5-woke.png');
+  expect('起床後は再度会話を案内する', await evaluate(`kara.tutorial.step === 3`));
 
   // 会話（学習後）
   await action('talk');
@@ -170,6 +174,7 @@ try {
   await done();
   const reply = await evaluate(`document.querySelector('.log-line:last-child').textContent`);
   expect('学習後は言葉を返す', !reply.includes('……'), reply);
+  expect('初日の案内が完了する', await evaluate(`kara.tutorial.step === 4 && document.querySelector('.tutorial').hidden`));
   await shot('7-replied.png');
 
   // 頭の中を見る
@@ -216,9 +221,15 @@ try {
   await sleep(1200);
 
   // セーブ
+  await clickOn('.settings-button');
+  await evaluate(`(() => { const s = document.querySelector('.chip-settings select'); s.value = 'sampler-temperature'; s.dispatchEvent(new Event('change')); const t = document.querySelector('[aria-label="温度"]'); t.value = '0.5'; t.dispatchEvent(new Event('input')); })()`);
+  expect('設定で温度チップを付け替えられる', await evaluate(`kara.chips.sampler.id === 'sampler-temperature' && kara.options.temperature === 0.5`));
+  await shot('12-chips.png');
+  await clickOn('.settings-close');
   await load();
   s = await state();
   expect('読み込み直しても育てた状態が残る', s.rows > 0 && s.sleeps === 1);
+  expect('チップと温度、初日の完了が保存される', await evaluate(`kara.chips.sampler.id === 'sampler-temperature' && kara.options.temperature === 0.5 && kara.tutorial.step === 4`));
 
   expect('画面のエラーがない', logs.length === 0, logs.join(' | '));
   ws.close();

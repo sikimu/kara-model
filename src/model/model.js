@@ -6,6 +6,7 @@ import contextLast1 from './chips/context-last1.js';
 import predictorTable from './chips/predictor-table.js';
 import samplerProportional from './chips/sampler-proportional.js';
 import learnerCount from './chips/learner-count.js';
+import samplerTemperature from './chips/sampler-temperature.js';
 
 export const BOS = '▶'; // 話者交代
 export const EOS = '■'; // 文末
@@ -24,6 +25,16 @@ export function createModel({ random = Math.random } = {}) {
   const store = {};       // 集計表: 文脈キー → { 次の文字 → 回数 }
   const shortMemory = []; // 短期記憶（文の配列）
   const stats = { sleeps: 0 };
+  const options = { temperature: 1 };
+  const tutorial = { step: 0 };
+  const samplers = [samplerProportional, samplerTemperature];
+  function setSampler(id, temperature = options.temperature) {
+    const chip = samplers.find(c => c.id === id);
+    if (!chip || !Number.isFinite(temperature) || temperature < 0.25 || temperature > 2) return false;
+    chips.sampler = chip;
+    options.temperature = temperature;
+    return true;
+  }
 
   // 推論。入力文は切り分けるだけで、返事には影響しない（初期チップ構成の制約）
   function infer(text) {
@@ -40,7 +51,8 @@ export function createModel({ random = Math.random } = {}) {
       if (found.length === 0) { reason = 'empty'; break; }
 
       const total = found.reduce((sum, c) => sum + c.count, 0);
-      const candidates = found.map((c) => ({ ...c, p: c.count / total }));
+      let candidates = found.map((c) => ({ ...c, p: c.count / total }));
+      if (chips.sampler.probabilities) candidates = chips.sampler.probabilities(candidates, options.temperature);
       trace.push({ type: 'probs', candidates });
 
       const r = random();
@@ -89,6 +101,8 @@ export function createModel({ random = Math.random } = {}) {
       shortMemory: [...shortMemory],
       chips: Object.fromEntries(Object.entries(chips).map(([slot, chip]) => [slot, chip.id])),
       stats: { ...stats },
+      options: { ...options },
+      tutorial: { ...tutorial },
     };
   }
 
@@ -99,7 +113,11 @@ export function createModel({ random = Math.random } = {}) {
     shortMemory.length = 0;
     shortMemory.push(...data.shortMemory.slice(-MEMORY_CAPACITY));
     stats.sleeps = data.stats?.sleeps ?? 0;
+    setSampler('sampler-proportional', 1);
+    setSampler(data.chips?.sampler, data.options?.temperature ?? 1);
+    tutorial.step = Number.isInteger(data.tutorial?.step) && data.tutorial.step >= 0 && data.tutorial.step <= 4
+      ? data.tutorial.step : (stats.sleeps > 0 || Object.keys(store).length > 0 ? 4 : 0);
   }
 
-  return { chips, store, shortMemory, stats, infer, hear, sleep, snapshot, restore };
+  return { chips, store, shortMemory, stats, options, tutorial, samplers, setSampler, infer, hear, sleep, snapshot, restore };
 }

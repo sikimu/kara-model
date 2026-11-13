@@ -455,7 +455,8 @@ export function createMindView(root, room, model) {
     g.font = `bold ${u * 0.8}px ${FONT}`;
     g.textAlign = 'center';
     for (const { e, geo } of labels.slice(0, 7)) {
-      const text = learn ? `${e.count}回` : `${rowTotal ? Math.round(e.count / rowTotal * 100) : 0}%`;
+      const probability = v.rows.find(r => r.token === e.b)?.p ?? (rowTotal ? e.count / rowTotal : 0);
+      const text = learn ? `${e.count}回` : `${Math.round(probability * 100)}%`;
       const tw = g.measureText(text).width + 10;
       roundRect(g, geo.mx - tw / 2, geo.my - u * 0.6, tw, u * 1.2, 6);
       g.fillStyle = 'rgba(20, 24, 50, 0.85)';

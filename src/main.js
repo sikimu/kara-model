@@ -47,6 +47,13 @@ for (const s of SPEEDS) {
 }
 top.append(title, speedBox);
 
+// キャラクター（3D）。three.js を読み込めなくても遊べるように、後から差し込む
+const characterRoot = document.createElement('section');
+characterRoot.className = 'character';
+import('./ui/character.js')
+  .then((m) => m.createCharacter(characterRoot))
+  .catch(() => { characterRoot.hidden = true; });
+
 // 中: 頭の中
 const mindRoot = document.createElement('section');
 
@@ -56,7 +63,7 @@ bottom.className = 'bottom';
 const tabs = document.createElement('nav');
 tabs.className = 'tabs';
 
-app.replaceChildren(top, mindRoot, bottom);
+app.replaceChildren(top, characterRoot, mindRoot, bottom);
 
 const model = createModel();
 const saved = load();

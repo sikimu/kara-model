@@ -206,21 +206,54 @@ export async function createRoom(root) {
 
   // 場面転換の幕。幕が閉じているあいだに fn を実行する
   const curtain = document.createElement('div');
-  curtain.style.cssText = 'position:absolute;inset:0;z-index:4;display:grid;place-items:center;'
-    + 'background:#fdf3d8;color:#6b4a2b;font-size:clamp(1.4rem,6vw,2.4rem);font-weight:bold;letter-spacing:0.2em;'
-    + 'clip-path:circle(0% at 50% 50%);transition:clip-path 0.45s ease-in-out;pointer-events:none;';
+  curtain.className = 'journey-cut';
+  curtain.setAttribute('aria-hidden', 'true');
+  curtain.innerHTML = `<div class="journey-card">
+    <span class="journey-brand">からっぽのコト</span>
+    <span class="journey-kicker"></span>
+    <svg class="journey-picture" viewBox="0 0 480 230" aria-hidden="true">
+      <circle class="journey-sun" cx="362" cy="48" r="27" fill="#f3d58b"/>
+      <g fill="#fffdf5"><path d="M62 52c-8-24 31-35 40-15 18-10 36 9 25 23H65Z"/><path d="M280 32c-8-20 24-30 32-12 18-7 27 8 20 18h-50Z"/></g>
+      <path d="M0 166Q99 63 227 166Q355 81 480 155V230H0Z" fill="#c4d7a7"/>
+      <path d="M0 199Q133 119 275 190Q386 135 480 177V230H0Z" fill="#8eae7b"/>
+      <path d="M213 230Q294 201 258 163" fill="none" stroke="#f8edce" stroke-width="31"/>
+      <g class="journey-town">
+        <rect x="137" y="102" width="94" height="84" rx="5" fill="#f8ebce"/><path d="M128 106V89h112v17Z" fill="#d68b71"/>
+        <path d="M133 119h102l7 21H126Z" fill="#d68b71"/><path d="m149 119-3 21m28-21-1 21m28-21 1 21m23-21 4 21" stroke="#fff5df" stroke-width="10"/>
+        <rect x="150" y="148" width="23" height="38" rx="2" fill="#9e7957"/><rect x="185" y="148" width="30" height="24" rx="3" fill="#afccd0"/>
+        <rect x="257" y="87" width="83" height="97" rx="5" fill="#eaf0df"/><path d="M246 91V74h105v17Z" fill="#739aa2"/>
+        <path d="M252 110h94l6 19H246Z" fill="#739aa2"/><path d="m268 110-2 19m27-19v19m27-19 2 19" stroke="#fff5df" stroke-width="10"/>
+        <rect x="272" y="139" width="22" height="45" rx="3" fill="#9e7957"/><rect x="305" y="139" width="24" height="25" rx="3" fill="#afccd0"/>
+      </g>
+      <g class="journey-house"><rect x="185" y="105" width="110" height="82" rx="6" fill="#fff2d6"/><path d="m166 111 74-65 74 65Z" fill="#ba8067"/><rect x="207" y="133" width="28" height="54" rx="5" fill="#9b7657"/><rect x="251" y="129" width="26" height="26" rx="4" fill="#f3d58b"/><path d="M264 130v24m-12-12h24" stroke="#fff4d9" stroke-width="3"/></g>
+      <g fill="#5e855e"><rect x="81" y="148" width="9" height="44" fill="#917855"/><circle cx="85" cy="127" r="29"/><circle cx="68" cy="147" r="21"/><circle cx="103" cy="145" r="23"/>
+      <rect x="386" y="152" width="8" height="43" fill="#917855"/><circle cx="389" cy="136" r="27"/><circle cx="373" cy="152" r="18"/><circle cx="407" cy="151" r="20"/></g>
+    </svg>
+    <h2 class="journey-title"></h2><p class="journey-note"></p>
+    <div class="journey-route"><span class="journey-from"></span><span class="journey-trail" aria-hidden="true"><i>●</i><i>●</i><i>●</i><i>●</i><i>●</i></span><span class="journey-to"></span></div>
+    <span class="journey-footer">聞いて、眠って、ことばが育つ。</span>
+  </div>`;
   root.append(curtain);
   async function transition(title, ms, fn) {
-    curtain.textContent = title;
+    const home = title === 'おうち';
+    curtain.dataset.destination = home ? 'home' : 'plaza';
+    curtain.querySelector('.journey-kicker').textContent = home ? 'ただいままで、あと少し' : '小さな、おでかけ';
+    curtain.querySelector('.journey-title').textContent = home ? 'ことばを連れて、おうちへ。' : 'まちの声を、聞きに。';
+    curtain.querySelector('.journey-note').textContent = home ? '今日のことばを、夢でおぼえよう。' : 'どんなことばに、出会えるかな。';
+    curtain.querySelector('.journey-from').textContent = home ? 'まちの ひろば' : 'おうち';
+    curtain.querySelector('.journey-to').textContent = title;
     if (ms > 0) {
-      curtain.style.clipPath = 'circle(75% at 50% 50%)';
+      curtain.setAttribute('aria-hidden', 'false');
+      curtain.classList.add('is-visible');
       await wait(Math.max(ms, 500));
     }
-    await fn();
-    if (ms > 0) {
-      await wait(ms * 1.2);
-      curtain.style.clipPath = 'circle(0% at 50% 50%)';
-      await wait(500);
+    try {
+      await fn();
+      if (ms > 0) await wait(Math.max(ms * 1.2, 1100));
+    } finally {
+      curtain.classList.remove('is-visible');
+      curtain.setAttribute('aria-hidden', 'true');
+      if (ms > 0) await wait(500);
     }
   }
 

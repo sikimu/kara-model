@@ -95,10 +95,16 @@ try {
   await load();
 
   const busy = () => evaluate(`document.querySelector('#app').dataset.busy === 'true'`);
+  let capturedReturn = false;
   const done = async (limit = 240000) => {
     const t0 = Date.now();
     await sleep(200);
     while (await busy()) {
+      if (!capturedReturn && await evaluate(`!!document.querySelector('.journey-cut.is-visible[data-destination="home"]')`)) {
+        await sleep(550);
+        await shot('3-return-cutin.png');
+        capturedReturn = true;
+      }
       if (Date.now() - t0 > limit) throw new Error('演出が終わらない');
       await sleep(150);
     }
@@ -124,6 +130,7 @@ try {
   const state = () => evaluate(`JSON.stringify({ rows: Object.keys(kara.store).length, mem: kara.shortMemory, sleeps: kara.stats.sleeps })`).then(JSON.parse);
 
   expect('起動して操作できる', (await busy()) === false);
+  expect('ゲームタイトルを表示する', await evaluate(`document.title.startsWith('からっぽのコト') && document.querySelector('.logo').textContent.includes('からっぽのコト')`));
   expect('初日は会話から案内する', await evaluate(`kara.tutorial.step === 0 && !document.querySelector('.tutorial').hidden`));
   await shot('1-home.png');
   await clickOn('.settings-button');
@@ -146,10 +153,19 @@ try {
   await clickOn('.listen-sample');
   await shot('2-listen-input.png');
   await clickOn('.listen-go');
+  const cutStart = Date.now();
+  while (!await evaluate(`!!document.querySelector('.journey-cut.is-visible[data-destination="plaza"]')`)) {
+    if (Date.now() - cutStart > 20000) throw new Error('お出かけのカットインが出ない');
+    await sleep(80);
+  }
+  await sleep(550);
+  await shot('3-departure-cutin.png');
+  expect('外への移動に行き先のカットインが出る', await evaluate(`document.querySelector('.journey-to').textContent === 'まちの ひろば'`));
   await sleep(SLOW ? 9000 : 4000);
   await shot('3-plaza.png');
   await done();
   let s = await state();
+  expect('帰宅のカットインも出る', capturedReturn);
   expect('聞いた文が短期記憶にたまる', s.mem.length > 0, s.mem.join(' / '));
   expect('眠る前は集計表が変わらない', s.rows === 0);
   expect('盗み聞き後は睡眠を案内する', await evaluate(`kara.tutorial.step === 2`));

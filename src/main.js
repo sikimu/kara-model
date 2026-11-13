@@ -38,7 +38,7 @@ const app = document.getElementById('app');
 // 左上: 小さなロゴ
 const logo = document.createElement('h1');
 logo.className = 'logo';
-logo.innerHTML = '<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M20 34V17" stroke="#587e4a" stroke-width="3" stroke-linecap="round"/><path d="M20 23C5 24 5 9 7 8c12 0 16 7 13 15Z" fill="#9bbd6a"/><path d="M20 18C19 7 29 3 35 5c0 10-6 16-15 13Z" fill="#638e50"/></svg><span>空モデル</span>';
+logo.innerHTML = '<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M20 34V17" stroke="#587e4a" stroke-width="3" stroke-linecap="round"/><path d="M20 23C5 24 5 9 7 8c12 0 16 7 13 15Z" fill="#9bbd6a"/><path d="M20 18C19 7 29 3 35 5c0 10-6 16-15 13Z" fill="#638e50"/></svg><span>からっぽのコト<small>聞いて、眠って、ことばが育つ。</small></span>';
 
 // 右上: 再生中だけ出る一時停止とコマ送り、頭の中から家にもどる、設定
 const hud = document.createElement('div');

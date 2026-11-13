@@ -9,7 +9,7 @@
 - 素の JavaScript（ES Modules）。ビルド工程・フレームワーク・npm は使わない
 - three.js は CDN から importmap で読み込む。バージョンは導入時の安定版に固定する
 - 機械学習ライブラリは使わない。モデルは自前実装
-- 画面の主役は three.js の 3D の部屋（空モデルの頭の中）。キャラクターが部屋を動き回ってトレースを演じる
+- ふだんは three.js の 3D の家と広場で空モデルの暮らしを見せる。推論と学習は頭の中の画面（2D canvas）に画面全体を切り替え、トレースを再生する
 - HTML は文字入力・タブ・速度切り替えなど最小限にする。「ブラウザゲーム感」のあるパネル UI にしない
 - キャラクターや小物は Blender で作る（`blender/build_assets.py` から glb を書き出す。手作業の編集はしない）
 - 保存は localStorage
@@ -32,7 +32,9 @@ docs/roadmap.md     実装ステップと進捗
 src/main.js         起動と画面切り替え
 src/model/          モデル本体・チップ・トレース（UI 非依存）
 src/model/chips/    チップ（1 ファイル 1 チップ）
-src/ui/             画面と演出（3D の部屋でトレースを再生）
+src/ui/             画面と演出（3D の家・広場と頭の中の画面）
+src/ui/stage.js     家・広場の演出と頭の中への切り替え
+src/ui/mindview.js  頭の中の画面（2D canvas で推論・学習・地図を表示）
 src/save.js         セーブとロード
 assets/character.glb  Blender から書き出したキャラクター
 assets/room.glb       Blender から書き出した家・広場・小物、立ち位置の目印

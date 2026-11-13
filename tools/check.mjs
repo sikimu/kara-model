@@ -3,6 +3,7 @@
 //         node tools/check.mjs --slow     （ふつうの速度で動かす。演出を画面写真で見たいとき）
 //         node tools/check.mjs --mobile   （スマホの縦長画面 390x844）
 //         node tools/check.mjs --published （GitHub Pages の公開サイトを確認）
+//         node tools/check.mjs --appearance （タイトルと部屋の外観を短時間で確認）
 // 依存なし（Node 22 以上と Chrome が要る）。Chrome の場所は環境変数 CHROME で変えられる。
 // 終了コード: 画面のエラーや期待外れがあれば 1。
 
@@ -158,6 +159,11 @@ try {
   await shot('0-settings.png');
   await clickOn('.settings-close');
 
+  if (process.argv.includes('--appearance')) {
+    await action('talk');
+    await sleep(400);
+    await shot('1-character.png');
+  } else {
   // 会話（空の状態）
   await action('talk');
   await shot('1-talk.png');
@@ -270,6 +276,7 @@ try {
   s = await state();
   expect('読み込み直しても育てた状態が残る', s.rows > 0 && s.sleeps === 1);
   expect('チップと温度、初日の完了が保存される', await evaluate(`kara.chips.sampler.id === 'sampler-temperature' && kara.options.temperature === 0.5 && kara.tutorial.step === 4`));
+  }
 
   expect('画面のエラーがない', logs.length === 0, logs.join(' | '));
   ws.close();

@@ -138,15 +138,15 @@ def rnd(i, salt=0.0):
 #                    > armL / armR
 #             > footL / footR
 def build_character():
-    """主人公。形はデザイン画（docs/art/character-sheet.png）に合わせる"""
+    """主人公。タイトル絵（assets/journey-home.png）の丸みと表情に合わせる"""
     reset()
-    skin = mat('skin', (0.995, 0.965, 0.9), rough=0.55)
-    dark = mat('eye_dark', (0.2, 0.13, 0.11), rough=0.12)
-    white = mat('eye_white', (1.0, 1.0, 1.0), rough=0.2, glow=0.3)
-    pink = mat('pink', (0.99, 0.72, 0.74), rough=0.7)
-    ear_in = mat('ear_in', (0.99, 0.78, 0.8), rough=0.7)
-    mouth = mat('mouth', (0.36, 0.22, 0.2), rough=0.5)
-    scarf = mat('scarf', (0.42, 0.62, 0.87), rough=0.85)
+    skin = mat('skin', (0.995, 0.94, 0.84), rough=0.95)
+    dark = mat('eye_dark', (0.34, 0.22, 0.16), rough=0.45)
+    white = mat('eye_white', (1.0, 0.98, 0.92), rough=0.5, glow=0.15)
+    pink = mat('pink', (0.98, 0.70, 0.61), rough=0.95)
+    ear_in = mat('ear_in', (0.97, 0.77, 0.68), rough=0.95)
+    mouth = mat('mouth', (0.40, 0.27, 0.19), rough=0.9)
+    scarf = mat('scarf', (0.49, 0.63, 0.79), rough=1.0)
     stem = mat('stem', (0.5, 0.7, 0.3), rough=0.6)
     leaf = mat('leaf_new', (0.56, 0.76, 0.33), rough=0.55)
 
@@ -154,46 +154,79 @@ def build_character():
     # 足（体と同じ色の、短くて丸い足）
     for side, x in (('L', -0.125), ('R', 0.125)):
         foot = empty('foot' + side, T(x, 0.11, 0.0), root)
-        sphere('foot_mesh' + side, 0.118, skin, (0, 0, 0), scale=(1.0, 1.12, 0.95), parent=foot)
+        sphere('foot_mesh' + side, 0.125, skin, (0, 0, 0), scale=(1.05, 1.22, 0.95), parent=foot)
 
     # 体（下ぶくれの洋なし形）
     body = empty('body', T(0, 0.4, 0), root)
-    sphere('torso', 0.25, skin, T(0, 0.02, 0), scale=(1.0, 0.9, 1.1), parent=body)
-    sphere('hips', 0.285, skin, T(0, -0.1, 0), scale=(1.02, 0.9, 0.8), parent=body)
+    torso = sphere('torso', 0.30, skin, T(0, -0.02, 0), scale=(1.0, 0.95, 1.02), parent=body, seg=48)
+    # 二つの球の段差をなくし、下側が少しふくらむ一続きの体にする。
+    for vertex in torso.data.vertices:
+        fullness = 1 - 0.13 * vertex.co.z / 0.306
+        vertex.co.x *= fullness
+        vertex.co.y *= fullness
     sphere('tail', 0.09, skin, T(0, -0.13, -0.28), parent=body)
     # マフラー（首に巻いて、前に垂らす）
-    sphere('scarf_ring', 0.3, scarf, T(0, 0.15, 0), scale=(1.06, 1.0, 0.3), parent=body)
-    sphere('scarf_knot', 0.085, scarf, T(0.17, 0.12, 0.24), scale=(1.1, 0.8, 0.9), parent=body)
-    box('scarf_tail', S(0.14, 0.3, 0.05), scarf, T(0.19, -0.04, 0.27), parent=body, bevel=0.022,
-        rot=RZ(-8))
+    sphere('scarf_ring', 0.32, scarf, T(0, 0.18, 0), scale=(1.08, 1.0, 0.32), parent=body)
+    sphere('scarf_fold', 0.31, scarf, T(0, 0.15, 0.025), scale=(1.08, 1.0, 0.17), parent=body)
+    sphere('scarf_knot', 0.08, scarf, T(0.22, 0.14, 0.22), scale=(1.1, 0.8, 0.9), parent=body)
+    box('scarf_tail', S(0.17, 0.29, 0.065), scarf, T(0.26, -0.02, 0.25), parent=body, bevel=0.032,
+        rot=RZ(16))
+    box('scarf_tail_back', S(0.15, 0.21, 0.06), scarf, T(0.31, 0.01, 0.16), parent=body, bevel=0.028,
+        rot=RZ(35))
     # 腕（肩を中心に回して上げ下げする。短くて先が丸い）
     for side, x in (('L', -1), ('R', 1)):
-        arm = empty('arm' + side, T(x * 0.26, 0.07, 0), body)
-        sphere('arm_mesh' + side, 0.088, skin, T(x * 0.03, -0.12, 0), scale=(0.92, 0.92, 1.75),
+        arm = empty('arm' + side, T(x * 0.28, 0.08, 0.025), body)
+        sphere('arm_mesh' + side, 0.104, skin, T(x * 0.03, -0.10, 0), scale=(0.96, 0.96, 1.42),
                parent=arm, rot=RZ(x * 12))
 
     # 頭（横に広く、少しつぶれた玉）
-    head = empty('head', T(0, 0.46, 0), body)
-    sphere('head_mesh', 0.44, skin, (0, 0, 0), scale=(1.09, 0.95, 0.87), parent=head, seg=48)
+    head = empty('head', T(0, 0.50, 0), body)
+    head_mesh = sphere('head_mesh', 0.44, mat('face_skin', (1, 1, 1), rough=0.95),
+                       (0, 0, 0), scale=(1.20, 0.94, 0.98), parent=head, seg=96)
+    # 頬は球を貼らず、頂点色で肌にぼかす。横顔でも突起にならない。
+    colors = head_mesh.data.color_attributes.new(name='face_tint', type='FLOAT_COLOR', domain='POINT')
+    for vertex, color in zip(head_mesh.data.vertices, colors.data):
+        x, depth, height = vertex.co
+        blush = math.exp(-((abs(x) - 0.335) / 0.085) ** 2 - ((height + 0.15) / 0.055) ** 2)
+        blush *= max(0, min(1, (-depth - 0.12) / 0.1))
+        base, rosy = (0.995, 0.94, 0.84), (0.98, 0.70, 0.61)
+        color.color = (*((a * (1 - blush) + b * blush) ** 2.2 for a, b in zip(base, rosy)), 1)
+    face_mat = head_mesh.data.materials[0]
+    vertex_color = face_mat.node_tree.nodes.new('ShaderNodeVertexColor')
+    vertex_color.layer_name = 'face_tint'
+    bsdf = next(n for n in face_mat.node_tree.nodes if n.type == 'BSDF_PRINCIPLED')
+    face_mat.node_tree.links.new(vertex_color.outputs['Color'], bsdf.inputs['Base Color'])
     for side, x in (('L', -1), ('R', 1)):
-        sphere('ear' + side, 0.155, skin, T(x * 0.34, 0.27, -0.02), scale=(1, 0.55, 1), parent=head)
-        sphere('ear_in' + side, 0.095, ear_in, T(x * 0.34, 0.265, 0.045), scale=(1, 0.35, 1), parent=head)
-        # 目（大きな黒い目に、白い光が 2 つ）
-        eye = empty('eye' + side, T(x * 0.185, -0.02, 0.372), head)
-        sphere('eye_iris' + side, 0.088, dark, (0, 0, 0), scale=(0.84, 0.4, 1.1), parent=eye)
-        sphere('eye_light' + side, 0.028, white, T(0.022, 0.042, 0.034), scale=(1, 0.5, 1), parent=eye, seg=16)
-        sphere('eye_light2' + side, 0.013, white, T(-0.026, -0.036, 0.034), scale=(1, 0.5, 1), parent=eye, seg=12)
-        sphere('cheek' + side, 0.075, pink, T(x * 0.3, -0.125, 0.288), scale=(1.15, 0.25, 0.62), parent=head)
-    # 口もと（小さなふくらみと、ω の形の口）
-    sphere('muzzle', 0.09, skin, T(0, -0.115, 0.385), scale=(1.25, 0.6, 0.8), parent=head)
+        sphere('ear' + side, 0.17, skin, T(x * 0.375, 0.30, -0.025), scale=(1, 0.6, 1), parent=head)
+        sphere('ear_in' + side, 0.106, ear_in, T(x * 0.375, 0.30, 0.065), scale=(1, 0.28, 1), parent=head)
+        # タイトル絵の、茶色い大きな目とひとつの柔らかい光。
+        eye = empty('eye' + side, T(x * 0.202, -0.022, 0.379), head)
+        sphere('eye_iris' + side, 0.111, dark, (0, 0, 0), scale=(0.88, 0.32, 1.08), parent=eye)
+        sphere('eye_light' + side, 0.031, white, T(-0.023, 0.045, 0.034), scale=(1, 0.38, 1), parent=eye, seg=20)
+    # 鼻先の突起は作らず、頬に沿った小さな w 字の笑顔にする。
     for side, x in (('L', -1), ('R', 1)):
-        sphere('mouth' + side, 0.02, mouth, T(x * 0.021, -0.122, 0.438), scale=(1.2, 0.45, 0.75),
-               parent=head, seg=12)
+        curve = bpy.data.curves.new('smile' + side, 'CURVE')
+        curve.dimensions = '3D'
+        curve.bevel_depth = 0.007
+        curve.bevel_resolution = 3
+        spline = curve.splines.new('POLY')
+        spline.points.add(16)
+        for i, point in enumerate(spline.points):
+            k = i / 16
+            point.co = (*T(x * k * 0.056, -0.13 - math.sin(k * math.pi) * 0.024, 0.397), 1)
+        ob = bpy.data.objects.new('mouth' + side, curve)
+        bpy.context.scene.collection.objects.link(ob)
+        ob.parent = head
+        curve.materials.append(mouth)
+        bpy.context.view_layer.objects.active = ob
+        ob.select_set(True)
+        bpy.ops.object.convert(target='MESH')
+        ob.select_set(False)
     # 頭のてっぺんの芽（双葉）。育つと大きくなる
-    sprout = empty('sprout', T(0, 0.37, 0), head)
+    sprout = empty('sprout', T(0, 0.42, 0), head)
     cone('sprout_stem', 0.02, 0.016, 0.17, stem, T(0, 0.085, 0), parent=sprout)
     for side, x in (('L', -1), ('R', 1)):
-        sphere('sprout_leaf' + side, 0.1, leaf, T(x * 0.125, 0.2, 0), scale=(1.45, 0.75, 0.3),
+        sphere('sprout_leaf' + side, 0.115, leaf, T(x * 0.13, 0.2, 0), scale=(1.4, 0.55, 0.7),
                parent=sprout, rot=RZ(x * 20))
     export('character.glb')
 

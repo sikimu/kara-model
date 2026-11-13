@@ -280,6 +280,18 @@ def build_room():
     box('base_right', S(0.05, 0.14, D), trim, T(W / 2 - 0.025, 0.07, 0), bevel=0.01)
     box('base_left', S(0.05, 0.14, 5.1), trim, T(-W / 2 + 0.025, 0.07, -0.65), bevel=0.01)
     box('door_post', S(0.24, H, 0.24), trim, T(-W / 2 - 0.1, H / 2, 1.9), bevel=0.02)
+    # ドア（外へ聞きに行く出入り口）。ちょうつがいの位置に置き、three.js 側で回して開ける
+    DH = 2.5
+    door = empty('door', T(-W / 2 - 0.1, 0, 2.02))
+    door_wood = mat('door_wood', (0.78, 0.56, 0.38))
+    box('door_panel', S(0.1, DH, 1.14), door_wood, T(0, DH / 2, 0.59), parent=door, bevel=0.02)
+    box('door_window', S(0.13, 0.55, 0.55), mat('door_glass', (0.7, 0.88, 0.98), rough=0.15, glow=0.4),
+        T(0, 1.8, 0.59), parent=door, bevel=0.02)
+    sphere('door_knob', 0.075, mat('door_knob', (0.96, 0.82, 0.42), rough=0.3, metal=0.5),
+           T(0.09, 1.1, 1.0), parent=door, seg=16)
+    box('door_top', S(0.2, H - DH, 1.3), wall, T(-W / 2 - 0.1, DH + (H - DH) / 2, 2.55), bevel=0)
+    # 家の下の草地（家だけを映すときの土台）
+    box('yard', S(W + 2.6, 0.3, D + 1.8), mat('grass', (0.66, 0.83, 0.52), rough=0.95), T(0, -0.36, 0.1), bevel=0.1)
 
     # 棚（かざり。おぼえたことのしるし）
     shelf = empty('shelf', T(0, 0, -2.85))

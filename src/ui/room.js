@@ -155,45 +155,59 @@ export async function createRoom(root) {
   const board = createBoard(roomGltf.scene.getObjectByName('board_face'));
   scene.add(board.mesh);
 
-  // カメラの構図。house: 家に寄る、world: 家と広場の全体
+  // カメラの構図。house: 家だけ、plaza: まちの ひろば。tall は縦長の画面（スマホ）のときの構図
   const SHOTS = {
-    house: { target: new THREE.Vector3(-1.6, 1.4, -0.1), halfW: 4.9, halfH: 4.5 },
-    plaza: { target: new THREE.Vector3(-4.6, 1.3, -0.3), halfW: 5.6, halfH: 4.3 },
+    house: {
+      wide: { target: new THREE.Vector3(0, 1.75, 0.1), halfW: 4.3, halfH: 4.0 },
+      tall: { target: new THREE.Vector3(0, 1.75, 0.1), halfW: 3.75, halfH: 4.0 },
+    },
+    plaza: {
+      wide: { target: new THREE.Vector3(-4.6, 1.3, -0.3), halfW: 5.6, halfH: 4.3 },
+      tall: { target: new THREE.Vector3(-5.9, 1.3, 0), halfW: 3.9, halfH: 4.0 },
+    },
   };
-  const target = SHOTS.house.target.clone();
-  let halfW = SHOTS.house.halfW;
-  let halfH = SHOTS.house.halfH;
+  let shot = 'house';
+  const isTall = () => root.clientWidth < root.clientHeight * 0.8;
   const dir = new THREE.Vector3(0, 0.66, 0.75).normalize();
+  const look = new THREE.Vector3();
   function resize() {
     const w = root.clientWidth;
     const h = root.clientHeight;
     if (w === 0 || h === 0) return;
     renderer.setSize(w, h);
     camera.aspect = w / h;
+    const { target, halfW, halfH } = SHOTS[shot][isTall() ? 'tall' : 'wide'];
     const t = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
     const dist = Math.max(halfW / (t * camera.aspect), halfH / t);
-    camera.position.copy(target).addScaledVector(dir, dist);
-    camera.lookAt(target);
+    // 縦に余るときは、家を少し上に寄せて、下を入力のために空ける
+    const spare = dist * t - halfH;
+    look.copy(target);
+    look.y -= spare * 0.3;
+    camera.position.copy(look).addScaledVector(dir, dist);
+    camera.lookAt(look);
     camera.updateProjectionMatrix();
   }
   new ResizeObserver(resize).observe(root);
   resize();
 
-  // 場面を切り替える。house: 家と庭、plaza: まちの ひろば（家の代わりにお店が見える）
+  // 場面を切り替える。house: 家だけ、plaza: まちの ひろば（広場と、家の代わりのお店が見える）
   const houseRoot = roomGltf.scene.getObjectByName('house_root');
+  const plazaRoot = roomGltf.scene.getObjectByName('plaza_root');
   const townRoot = roomGltf.scene.getObjectByName('town_root');
   function setScene(name) {
     const out = name === 'plaza';
     houseRoot.visible = !out;
     board.mesh.visible = !out;
+    plazaRoot.visible = out;
     townRoot.visible = out;
-    setShot(out ? 'plaza' : 'house', 0);
+    shot = out ? 'plaza' : 'house';
+    resize();
   }
 
   // 場面転換の幕。幕が閉じているあいだに fn を実行する
   const curtain = document.createElement('div');
   curtain.style.cssText = 'position:absolute;inset:0;z-index:4;display:grid;place-items:center;'
-    + 'background:#fdf3d8;color:#6b4a2b;font-size:2.4rem;font-weight:bold;letter-spacing:0.2em;'
+    + 'background:#fdf3d8;color:#6b4a2b;font-size:clamp(1.4rem,6vw,2.4rem);font-weight:bold;letter-spacing:0.2em;'
     + 'clip-path:circle(0% at 50% 50%);transition:clip-path 0.45s ease-in-out;pointer-events:none;';
   root.append(curtain);
   async function transition(title, ms, fn) {
@@ -208,19 +222,6 @@ export async function createRoom(root) {
       curtain.style.clipPath = 'circle(0% at 50% 50%)';
       await wait(500);
     }
-  }
-
-  // 構図を切り替える（ms かけてなめらかに動かす）
-  function setShot(name, ms) {
-    const to = SHOTS[name];
-    const from = { target: target.clone(), halfW, halfH };
-    return tween(ms, (k) => {
-      const e = k * k * (3 - 2 * k);
-      target.lerpVectors(from.target, to.target, e);
-      halfW = from.halfW + (to.halfW - from.halfW) * e;
-      halfH = from.halfH + (to.halfH - from.halfH) * e;
-      resize();
-    });
   }
 
   // 3D の位置が画面のどこに見えるか（root の左上からのピクセル）
@@ -274,6 +275,10 @@ export async function createRoom(root) {
   return {
     scene,
     camera,
+    canvas: renderer.domElement,
+    object: (name) => roomGltf.scene.getObjectByName(name),
+    // 縦長の画面では札の文字が小さくなるので、大きめに作る
+    get textScale() { return isTall() ? 1.6 : 1; },
     character: charGltf.scene,
     npc: npcGltf.scene, // 広場で話す人のひな形（場面には足していない）
     board,
@@ -282,7 +287,6 @@ export async function createRoom(root) {
     wait,
     onFrame: (fn) => frameHandlers.push(fn),
     setNight,
-    setShot,
     setScene,
     transition,
     screenPos,

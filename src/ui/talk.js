@@ -1,10 +1,11 @@
-// 会話パート。入力欄と会話ログ。
+// 会話。キャラクターを押すと出る、吹き出しの入力と、直前のやり取り。
 
 import { EMPTY_REPLY } from '../model/model.js';
+import { iconButton } from './icons.js';
+
+const LOG_LINES = 4; // 見せておくやり取りの数（会話ログは保存しない）
 
 export function createTalk(root, { model, mind, show, run }) {
-  root.classList.add('talk');
-
   const log = document.createElement('div');
   log.className = 'log';
   log.setAttribute('role', 'log');
@@ -18,9 +19,9 @@ export function createTalk(root, { model, mind, show, run }) {
   input.setAttribute('aria-label', '空モデルに話しかける言葉');
   input.maxLength = 40;
   input.autocomplete = 'off';
-  const button = document.createElement('button');
+  input.enterKeyHint = 'send';
+  const button = iconButton('send', '話す', 'send-button');
   button.type = 'submit';
-  button.textContent = '話す';
   const bubble = document.createElement('div');
   bubble.className = 'input-bubble';
   bubble.append(input);
@@ -43,8 +44,12 @@ export function createTalk(root, { model, mind, show, run }) {
     message.textContent = text;
     line.append(message);
     log.append(line);
-    log.scrollTop = log.scrollHeight;
+    while (log.children.length > LOG_LINES) log.firstElementChild.remove();
   }
+
+  // 開いたら、すぐ打てるようにする（スマホではキーボードが画面を隠すので、押すまで出さない）
+  const focus = () => { if (matchMedia('(pointer: fine)').matches) input.focus(); };
+  root.addEventListener('open', focus);
 
   form.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -53,6 +58,7 @@ export function createTalk(root, { model, mind, show, run }) {
 
     run(async () => {
       input.value = '';
+      input.blur();
       addLine('you', text);
 
       const result = model.infer(text);
@@ -63,6 +69,6 @@ export function createTalk(root, { model, mind, show, run }) {
       const heard = [...model.hear(text).trace];
       if (result.text !== EMPTY_REPLY) heard.push(...model.hear(result.text).trace);
       await show(heard);
-    }).then(() => input.focus());
+    }).then(focus);
   });
 }

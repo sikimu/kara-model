@@ -14,7 +14,7 @@
 - キャラクターや小物は Blender で作る（`blender/build_assets.py` から glb を書き出す。手作業の編集はしない）
 - 保存は localStorage
 - 音楽と効果音は Web Audio API でその場で合成する（音声ファイルは置かない）。音声の認識や読み上げは扱わない
-- PC の大きな画面（横長）で遊ぶことを優先する。スマホ対応は後回し
+- PC の大きな画面（横長）を基準にし、スマホの縦長画面にも対応する（S18）
 
 ## 設計の原則
 
@@ -58,7 +58,7 @@ tools/check.mjs       動作確認（ヘッドレス Chrome で通しで動か�
 
 ES Modules は `file://` では動かない。VS Code の Live Server で `index.html` を開く。
 
-変更したら `node tools/check.mjs` を実行する（`--slow` を付けると、ふつうの速度で動かして演出の画面写真を撮れる）。
+変更したら `node tools/check.mjs` を実行する（`--mobile` で縦長画面とタップ操作、`--slow` でふつうの速度の演出を確認できる）。
 すべて OK になり、`tools/out/` の画面写真で見た目を確かめてからコミットする。ユーザーに確認手順を頼まない。
 
 glb を作り直すとき: `blender -b -P blender/build_assets.py`（Blender 5.3 で確認）

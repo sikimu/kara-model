@@ -1,6 +1,7 @@
 // 動作確認。ヘッドレス Chrome でゲームを通しで動かし、画面写真を tools/out/ に保存する。
 // 使い方: node tools/check.mjs            （PC の画面 1600x900）
 //         node tools/check.mjs --slow     （ふつうの速度で動かす。演出を画面写真で見たいとき）
+//         node tools/check.mjs --mobile   （スマホの縦長画面 390x844）
 // 依存なし（Node 22 以上と Chrome が要る）。Chrome の場所は環境変数 CHROME で変えられる。
 // 終了コード: 画面のエラーや期待外れがあれば 1。
 
@@ -13,10 +14,11 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = path.join(ROOT, 'tools', 'out');
-const PORT = 8766;
-const DEBUG_PORT = 9334;
+const PORT = process.argv.includes('--mobile') ? 8767 : 8766;
+const DEBUG_PORT = process.argv.includes('--mobile') ? 9335 : 9334;
 const CHROME = process.env.CHROME ?? 'C:/Program Files/Google/Chrome/Application/chrome.exe';
 const SLOW = process.argv.includes('--slow');
+const MOBILE = process.argv.includes('--mobile');
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.glb': 'model/gltf-binary', '.png': 'image/png' };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -72,7 +74,7 @@ try {
   };
   const shot = async (name) => {
     const r = await send('Page.captureScreenshot', { format: 'png' });
-    await writeFile(path.join(OUT, name), Buffer.from(r.result.data, 'base64'));
+    await writeFile(path.join(OUT, `${MOBILE ? 'mobile-' : ''}${name}`), Buffer.from(r.result.data, 'base64'));
   };
   const expect = (label, ok, detail = '') => {
     console.log(`${ok ? 'OK ' : 'NG '} ${label}${detail ? `: ${detail}` : ''}`);
@@ -82,7 +84,8 @@ try {
   await send('Runtime.enable');
   await send('Page.enable');
   await send('Network.enable');
-  await send('Emulation.setDeviceMetricsOverride', { width: 1600, height: 900, deviceScaleFactor: 1, mobile: false });
+  await send('Emulation.setDeviceMetricsOverride', { width: MOBILE ? 390 : 1600, height: MOBILE ? 844 : 900, deviceScaleFactor: 1, mobile: MOBILE });
+  if (MOBILE) await send('Emulation.setTouchEmulationEnabled', { enabled: true });
   const url = `http://127.0.0.1:${PORT}/index.html`;
   const load = async () => { await send('Page.navigate', { url }); await sleep(3500); };
 
@@ -91,7 +94,7 @@ try {
   await evaluate(`localStorage.clear(); localStorage.setItem('kara-model-ui', JSON.stringify({ speedIndex: ${SLOW ? 5 : 9}, skip: false }))`);
   await load();
 
-  const busy = () => evaluate(`document.querySelector('.bottom').disabled`);
+  const busy = () => evaluate(`document.querySelector('#app').dataset.busy === 'true'`);
   const done = async (limit = 240000) => {
     const t0 = Date.now();
     await sleep(200);
@@ -100,14 +103,36 @@ try {
       await sleep(150);
     }
   };
-  const tab = (name) => evaluate(`[...document.querySelectorAll('.tabs button')].find((b) => b.textContent.includes(${JSON.stringify(name)})).click()`);
+  const click = async (x, y) => {
+    if (MOBILE) {
+      await send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
+      await send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      return;
+    }
+    for (const type of ['mousePressed', 'mouseReleased']) {
+      await send('Input.dispatchMouseEvent', { type, x, y, button: 'left', clickCount: 1 });
+    }
+  };
+  const center = (selector) => evaluate(`(() => { const r = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
+  const clickOn = async (selector) => { const p = await center(selector); await click(p.x, p.y); };
+  const action = async (id) => {
+    const p = await evaluate(`karaPoint(${JSON.stringify(id)})`);
+    await click(p.x, p.y);
+    await sleep(250);
+    if (id !== 'explore') expect(`${id} を部屋から開ける`, await evaluate(`!document.querySelector('.part.${id}').hidden && !document.querySelector('.dock').hidden`));
+  };
   const state = () => evaluate(`JSON.stringify({ rows: Object.keys(kara.store).length, mem: kara.shortMemory, sleeps: kara.stats.sleeps })`).then(JSON.parse);
 
   expect('起動して操作できる', (await busy()) === false);
   await shot('1-home.png');
+  await clickOn('.settings-button');
+  expect('設定を開ける', await evaluate(`document.querySelector('.settings').open`));
+  await shot('0-settings.png');
+  await clickOn('.settings-close');
 
   // 会話（空の状態）
-  await tab('会話');
+  await action('talk');
+  await shot('1-talk.png');
   await evaluate(`(() => { const i = document.querySelector('.talk-form input'); i.value = 'やあ'; document.querySelector('.talk-form').requestSubmit(); })()`);
   await sleep(SLOW ? 2600 : 1500);
   await shot('2-thinking.png');
@@ -115,8 +140,10 @@ try {
   expect('空の状態では「……」を返す', (await evaluate(`document.querySelector('.log-line:last-child').textContent`)).includes('……'));
 
   // 盗み聞き（お手本を入れて、まちの ひろば へ）
-  await tab('盗み聞き');
-  await evaluate(`document.querySelector('.listen-sample').click(); document.querySelector('.listen-go').click()`);
+  await action('listen');
+  await clickOn('.listen-sample');
+  await shot('2-listen-input.png');
+  await clickOn('.listen-go');
   await sleep(SLOW ? 9000 : 4000);
   await shot('3-plaza.png');
   await done();
@@ -125,7 +152,8 @@ try {
   expect('眠る前は集計表が変わらない', s.rows === 0);
 
   // 睡眠（夢の中で学習）
-  await tab('睡眠');
+  await action('sleep');
+  await shot('3-sleep-input.png');
   await evaluate(`document.querySelector('.sleep-button').click()`);
   await sleep(SLOW ? 9000 : 4500);
   await shot('4-dream.png');
@@ -135,7 +163,7 @@ try {
   await shot('5-woke.png');
 
   // 会話（学習後）
-  await tab('会話');
+  await action('talk');
   await evaluate(`(() => { const i = document.querySelector('.talk-form input'); i.value = 'こんにちは'; document.querySelector('.talk-form').requestSubmit(); })()`);
   await sleep(SLOW ? 6000 : 3000);
   await shot('6-infer.png');
@@ -145,21 +173,21 @@ try {
   await shot('7-replied.png');
 
   // 頭の中を見る
-  await evaluate(`[...document.querySelectorAll('.settings-button')].find((b) => b.textContent.includes('頭の中を見る')).click()`);
+  await action('explore');
   await sleep(2000);
   await shot('8-explore.png');
-  await evaluate(`[...document.querySelectorAll('.settings-button')].find((b) => b.textContent.includes('家にもどる')).click()`);
+  if (MOBILE) {
+    await evaluate(`document.querySelector('.stage3d').scrollTop = 1000`);
+    await sleep(300);
+    await shot('8-explore-bottom.png');
+    expect('頭の中を縦にスクロールできる', await evaluate(`document.querySelector('.stage3d').scrollTop > 0`));
+  }
+  await clickOn('.home-button');
   await sleep(1200);
   expect('頭の中から戻ると操作できる', (await busy()) === false);
 
   // 本物のマウス操作: 一時停止、コマ送り、なでる
-  const click = async (x, y) => {
-    for (const type of ['mousePressed', 'mouseReleased']) {
-      await send('Input.dispatchMouseEvent', { type, x, y, button: 'left', clickCount: 1 });
-    }
-  };
-  const center = (selector) => evaluate(`(() => { const r = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
-  const clickOn = async (selector) => { const p = await center(selector); await click(p.x, p.y); };
+  await action('talk');
   await clickOn('.talk-form input');
   await send('Input.insertText', { text: 'おはよう' });
   await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r' });
@@ -178,10 +206,11 @@ try {
   await clickOn('.pause-button');
   await done();
   expect('再開すると最後まで進む', (await evaluate(`document.querySelector('.log-line:last-child').classList.contains('kara')`)) === true);
-  // なでる: 画面上のキャラクターの位置を探してクリックする（3D なので、白い体の色の点を探す）
+  // なでる操作は、実際のキャラクターを押して会話の入力が開閉することでも確認する
   await shot('10-before-pet.png');
-  const stage = await evaluate(`(() => { const r = document.querySelector('.stage3d').getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; })()`);
-  await click(stage.x + stage.w * 0.57, stage.y + stage.h * 0.6);
+  const petPoint = await evaluate(`karaPoint('talk')`);
+  await click(petPoint.x, petPoint.y);
+  expect('キャラクターをもう一度押すと入力が閉じる', await evaluate(`document.querySelector('.dock').hidden`));
   await sleep(350);
   await shot('11-pet.png');
   await sleep(1200);

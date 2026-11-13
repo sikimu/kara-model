@@ -35,12 +35,18 @@ export function createMindView(root, room, model) {
   const g = canvas.getContext('2d');
   let W = 1;
   let H = 1;
+  const narrow = () => W <= 640;
+  const unit = () => narrow() ? 14 : clamp(H / 40, 14, 22);
+  const panelX = () => narrow() ? 12 : W * 0.62;
   function resize() {
     W = Math.max(1, root.clientWidth);
-    H = Math.max(1, root.clientHeight);
+    H = Math.max(W <= 640 ? 940 : 1, root.clientHeight);
     const dpr = Math.min(window.devicePixelRatio, 2);
     canvas.width = W * dpr;
     canvas.height = H * dpr;
+    canvas.style.width = `${W}px`;
+    canvas.style.height = `${H}px`;
+    if (canvas.style.pointerEvents === 'auto') root.style.overflowY = narrow() ? 'auto' : 'hidden';
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
   new ResizeObserver(resize).observe(root);
@@ -52,7 +58,9 @@ export function createMindView(root, room, model) {
   const stars = Array.from({ length: 90 }, () => ({ x: Math.random(), y: Math.random(), s: Math.random() }));
   let clock = 0;
 
-  const area = () => ({ x0: 28, y0: 118, x1: W * 0.6, y1: H - 64 });
+  const area = () => narrow()
+    ? { x0: 12, y0: 155, x1: W - 12, y1: 310 }
+    : { x0: 28, y0: 118, x1: W * 0.6, y1: H - 64 };
 
   function ensureNode(token, near) {
     let n = nodes.get(token);
@@ -221,9 +229,9 @@ export function createMindView(root, room, model) {
     g.restore();
   }
   function outputPoint(index) {
-    const u = clamp(H / 40, 14, 22), px = W * 0.62, pw = W - px - 24;
+    const u = unit(), px = panelX(), pw = W - px - (narrow() ? 12 : 24);
     const per = Math.max(1, Math.floor((pw - 28) / 31));
-    return { x: px + 28 + index % per * 31, y: H - 18 - u * 6.2 + Math.floor(index / per) * 32 + 14 };
+    return { x: px + 28 + index % per * 31, y: H - 18 - (narrow() ? 160 : u * 8.2) + u * 2 + Math.floor(index / per) * 32 + 14 };
   }
   function drawDie(x, y, size) {
     const k = v.roll ?? 1;
@@ -276,7 +284,7 @@ export function createMindView(root, room, model) {
     g.fillStyle = '#aebcf0';
     g.textAlign = 'left';
     g.textBaseline = 'middle';
-    g.fillText(title, x + 14, y + u * 1.1);
+    g.fillText(title, x + 14, y + u * 1.1, w - 28);
   }
 
   function edgeGeom(e) {
@@ -390,7 +398,7 @@ export function createMindView(root, room, model) {
   }
 
   function drawScene() {
-    const u = clamp(H / 40, 14, 22); // 文字の基準の大きさ
+    const u = unit(); // 文字の基準の大きさ
     const learn = v.mode === 'learn';
     const bg = g.createLinearGradient(0, 0, 0, H);
     bg.addColorStop(0, learn ? '#1b1436' : '#141b3d');
@@ -417,16 +425,16 @@ export function createMindView(root, room, model) {
     g.textAlign = 'left';
     g.font = `bold ${u * 1.2}px ${FONT}`;
     g.fillStyle = '#fff';
-    g.fillText(MODE_TITLE[v.mode], 28, 30);
+    g.fillText(narrow() ? { infer: '頭の中：返事を考えている', learn: '夢の中：聞いたことをおぼえる', explore: '頭の中：文字を押して行を見る' }[v.mode] : MODE_TITLE[v.mode], 28, narrow() ? 80 : 30, narrow() ? W - 56 : W * 0.6 - 28);
     const line = learn ? v.seq : v.heard;
     if (line) {
       g.font = `${u * 0.9}px ${FONT}`;
       g.fillStyle = '#aebcf0';
       const label = learn ? '思い出している文' : '聞いた言葉';
-      g.fillText(label, 28, 78);
+      g.fillText(label, 28, narrow() ? 110 : 78);
       const lx = 28 + g.measureText(label).width + 14;
-      tiles(line, lx, 60, 36, W * 0.6 - lx, learn ? (i) => i === v.replayAt || i === v.seqAt || i === v.seqAt + 1 : null);
-      if (!learn) {
+      tiles(line, narrow() ? 28 : lx, narrow() ? 125 : 60, narrow() ? 24 : 36, narrow() ? W - 56 : W * 0.6 - lx, learn ? (i) => i === v.replayAt || i === v.seqAt || i === v.seqAt + 1 : null);
+      if (!learn && !narrow()) {
         g.font = `${u * 0.8}px ${FONT}`;
         g.fillStyle = '#8f9bd0';
         g.textAlign = 'left';
@@ -486,7 +494,7 @@ export function createMindView(root, room, model) {
       g.font = `${u * 1.1}px ${FONT}`;
       g.fillStyle = '#aebcf0';
       g.textAlign = 'center';
-      g.fillText('まだ何もおぼえていない（まっさら）', (a.x0 + a.x1) / 2, (a.y0 + a.y1) / 2 - 60);
+      g.fillText('まだ何もおぼえていない（まっさら）', (a.x0 + a.x1) / 2, (a.y0 + a.y1) / 2 - 60, a.x1 - a.x0);
     }
     if (avatar.visible) drawAvatar();
     for (const f of v.floaters) {
@@ -502,13 +510,13 @@ export function createMindView(root, room, model) {
     g.font = `${u * 0.9}px ${FONT}`;
     g.fillStyle = '#cfd8ff';
     g.textAlign = 'left';
-    g.fillText(`おぼえた文字 ${st.kinds} 種類　・　つながり ${st.links} 本　・　数えた回数 ${st.total} 回　・　眠った回数 ${st.sleeps} 回`, 28, H - 30);
+    g.fillText(narrow() ? `文字 ${st.kinds} 種・つながり ${st.links} 本・${st.total} 回・睡眠 ${st.sleeps} 回` : `おぼえた文字 ${st.kinds} 種類　・　つながり ${st.links} 本　・　数えた回数 ${st.total} 回　・　眠った回数 ${st.sleeps} 回`, 28, narrow() ? 330 : H - 30, W - 56);
 
     // 右: 手順、今の行、抽選 / 書き換え、出力 / 短期記憶
-    const px = W * 0.62;
-    const pw = W - px - 24;
+    const px = panelX();
+    const pw = W - px - (narrow() ? 12 : 24);
     const gap = 12;
-    let y = 18;
+    let y = narrow() ? 350 : 68;
 
     const h1 = u * 7;
     card(px, y, pw, h1, 'いまの手順', u);
@@ -535,7 +543,7 @@ export function createMindView(root, room, model) {
     y += h1 + gap;
 
     const h3 = u * 6.4;
-    const h4 = u * 8.2;
+    const h4 = narrow() ? 160 : u * 8.2;
     const h2 = H - y - h3 - h4 - gap * 2 - 18;
     card(px, y, pw, h2, v.rowKey ? `「${v.rowKey}」の次に来る文字（集計表の 1 行）` : '集計表の 1 行', u);
     const rowH = u * 1.75;
@@ -544,7 +552,7 @@ export function createMindView(root, room, model) {
       g.font = `bold ${u * 1.2}px ${FONT}`;
       g.fillStyle = '#e8efe9';
       g.textAlign = 'center';
-      g.fillText(v.message, px + pw / 2, y + h2 / 2);
+      g.fillText(v.message, px + pw / 2, y + h2 / 2, pw - 28);
     }
     let shown = v.rows.slice(0, maxRows);
     if (v.picked && !shown.some((r) => r.token === v.picked)) {
@@ -606,7 +614,7 @@ export function createMindView(root, room, model) {
         g.fillText(v.write.done ? `${v.write.before} → ${v.write.after} 回` : `${v.write.before} 回`, px + pw - 18, y + u * 3.9);
       }
     } else {
-      card(px, y, pw, h3, '抽選（回数に比例した幅の帯に、サイコロの針を落とす）', u);
+      card(px, y, pw, h3, narrow() ? '抽選（回数に比例した幅の帯）' : '抽選（回数に比例した幅の帯に、サイコロの針を落とす）', u);
       if (v.strip) {
         const sx = px + 14;
         const sw = pw - 28;
@@ -653,7 +661,7 @@ export function createMindView(root, room, model) {
       g.font = `${u * 0.9}px ${FONT}`;
       g.fillStyle = '#ffe9a8';
       g.textAlign = 'left';
-      g.fillText(v.endText, px + 14, y + h4 - u * 1.1);
+      g.fillText(v.endText, px + 14, y + h4 - u * 1.1, pw - 28);
     } else {
       card(px, y, pw, h4, `短期記憶（${mem.length} / ${MEMORY_CAPACITY} 文）`, u);
       mem.forEach((m, i) => {
@@ -662,7 +670,7 @@ export function createMindView(root, room, model) {
         g.font = `${m.active ? 'bold ' : ''}${u * 0.9}px ${FONT}`;
         g.fillStyle = m.active ? GOLD : '#e8efe9';
         g.textAlign = 'left';
-        g.fillText(`${m.active ? '▶ ' : '・ '}${m.text}`, px + 16, my);
+        g.fillText(`${m.active ? '▶ ' : '・ '}${m.text}`, px + 16, my, pw - 32);
         g.restore();
       });
       if (mem.length === 0) {
@@ -763,6 +771,7 @@ export function createMindView(root, room, model) {
     origin = from ?? { x: W / 2, y: H / 2 };
     mem = memory.map((text) => ({ text, active: false }));
     canvas.style.pointerEvents = 'auto';
+    root.style.overflowY = narrow() ? 'auto' : 'hidden';
     sfx('moya', ms);
     await room.tween(ms, (k) => { reveal = k; });
     reveal = 1;
@@ -771,9 +780,11 @@ export function createMindView(root, room, model) {
 
   async function close(ms) {
     ambientRun++;
+    canvas.style.pointerEvents = 'none';
+    root.scrollTop = 0;
+    root.style.overflowY = 'hidden';
     await room.tween(ms, (k) => { reveal = 1 - k; });
     reveal = 0;
-    canvas.style.pointerEvents = 'none';
   }
 
   // のぞいているとき: 文字をクリックすると、その行を出す
@@ -878,8 +889,8 @@ export function createMindView(root, room, model) {
       v.glow = edgeKey(v.rowKey, ev.token);
       v.diceText = `乱数 ${ev.r.toFixed(3)} →「${ev.token}」`;
       sfx('mindWin', step, step / 1000);
-      const u = clamp(H / 40, 14, 22);
-      burst(W * 0.62 + 14 + (W * 0.38 - 52) * ev.r, H - 30 - u * 12.5);
+      const u = unit();
+      burst(panelX() + 14 + (W - panelX() - 52) * ev.r, H - 30 - (narrow() ? 160 : u * 8.2) - u * 4.3);
       await animate(step * 0.9, (k) => { v.flash = 1 - k; v.flow = k * 2; });
     },
 
@@ -957,7 +968,7 @@ export function createMindView(root, room, model) {
     async forget(ev, step) {
       const i = mem.findIndex((m) => m.text === ev.text);
       if (i >= 0) {
-        const item = mem[i], u = clamp(H / 40, 14, 22);
+        const item = mem[i], u = unit();
         burst(W * 0.72, H - 18 - u * 5.7 + i * u * 1.15, 'bubble', 28);
         sfx('forget', step);
         await animate(step * 0.8, (k) => { item.fade = k; });

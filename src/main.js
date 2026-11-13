@@ -1,10 +1,13 @@
 // 起動と画面切り替え
+// 画面は 3D の家だけ。部屋のもの（キャラクター・ドア・ベッド・黒板）を押すと、
+// その操作の入力が下に出る。設定は右上の歯車にまとめる。
 
 import { createModel } from './model/model.js';
 import { createStage } from './ui/stage.js';
 import { createTalk } from './ui/talk.js';
 import { createListen } from './ui/listen.js';
 import { createSleep } from './ui/sleep.js';
+import { ICONS, iconButton } from './ui/icons.js';
 import { save, load, clear } from './save.js';
 import { sound } from './ui/sound.js';
 
@@ -23,154 +26,155 @@ function saveUI() {
   try { localStorage.setItem('kara-model-ui', JSON.stringify({ speedIndex, skip })); } catch { /* 保存は任意 */ }
 }
 
+// 部屋のものを押すと開く入力。explore（黒板）は入力を持たず、頭の中の画面を開く
 const PARTS = [
-  { id: 'talk', name: '会話', create: createTalk },
-  { id: 'listen', name: '盗み聞き', create: createListen },
-  { id: 'sleep', name: '睡眠', create: createSleep },
+  { id: 'talk', create: createTalk },
+  { id: 'listen', create: createListen },
+  { id: 'sleep', create: createSleep },
 ];
 
 const app = document.getElementById('app');
 
-function pressOnly(box, button) {
-  for (const b of box.children) b.setAttribute('aria-pressed', String(b === button));
-}
+// 左上: 小さなロゴ
+const logo = document.createElement('h1');
+logo.className = 'logo';
+logo.innerHTML = '<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M20 34V17" stroke="#587e4a" stroke-width="3" stroke-linecap="round"/><path d="M20 23C5 24 5 9 7 8c12 0 16 7 13 15Z" fill="#9bbd6a"/><path d="M20 18C19 7 29 3 35 5c0 10-6 16-15 13Z" fill="#638e50"/></svg><span>空モデル</span>';
 
-// 上: タイトルと速度
-const top = document.createElement('header');
-top.className = 'top';
-const title = document.createElement('h1');
-title.innerHTML = '<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M20 34V17" stroke="#587e4a" stroke-width="3" stroke-linecap="round"/><path d="M20 23C5 24 5 9 7 8c12 0 16 7 13 15Z" fill="#9bbd6a"/><path d="M20 18C19 7 29 3 35 5c0 10-6 16-15 13Z" fill="#638e50"/></svg><span>空モデル<small>育成ゲーム</small></span>';
-const speedBox = document.createElement('div');
-speedBox.className = 'speed';
-const speedLabel = document.createElement('label');
-speedLabel.className = 'speed-label';
-speedLabel.innerHTML = '<span>ゆっくり <output></output> はやい</span>';
-const slider = document.createElement('input');
-slider.type = 'range';
-slider.min = '0';
-slider.max = '9';
-slider.step = '1';
-slider.value = String(speedIndex);
-slider.setAttribute('aria-label', '演出の速度');
-speedLabel.append(slider);
-const skipButton = document.createElement('button');
-skipButton.type = 'button';
-skipButton.className = 'skip-button';
-skipButton.textContent = '演出を飛ばす';
-const pauseButton = document.createElement('button');
-pauseButton.type = 'button';
-pauseButton.className = 'pause-button';
-pauseButton.disabled = true;
-const stepButton = document.createElement('button');
-stepButton.type = 'button';
-stepButton.className = 'step-button';
-stepButton.textContent = 'コマ送り';
+// 右上: 再生中だけ出る一時停止とコマ送り、頭の中から家にもどる、設定
+const hud = document.createElement('div');
+hud.className = 'hud';
+const homeButton = iconButton('home', '家にもどる', 'home-button');
+const pauseButton = iconButton('pause', '一時停止', 'pause-button');
+const stepButton = iconButton('step', 'コマ送り（1 手順だけ進める）', 'step-button');
+const settingsButton = iconButton('gear', '設定', 'settings-button');
+homeButton.hidden = true;
+pauseButton.hidden = true;
+stepButton.hidden = true;
+hud.append(homeButton, pauseButton, stepButton, settingsButton);
+
 function updatePlayback() {
-  speedLabel.querySelector('output').textContent = `速さ ${speedIndex + 1} / 10`;
-  slider.setAttribute('aria-valuetext', `${speedIndex + 1} / 10、1 手順 ${SPEEDS[speedIndex]} ミリ秒`);
-  slider.style.setProperty('--progress', `${speedIndex / 9 * 100}%`);
-  skipButton.setAttribute('aria-pressed', String(skip));
-  pauseButton.textContent = paused ? '再開' : '一時停止';
+  pauseButton.innerHTML = ICONS[paused ? 'play' : 'pause'];
+  pauseButton.setAttribute('aria-label', paused ? '再開' : '一時停止');
+  pauseButton.title = paused ? '再開' : '一時停止';
   pauseButton.setAttribute('aria-pressed', String(paused));
   stepButton.disabled = !paused;
-  stepButton.title = paused ? '1 手順だけ進める' : '一時停止すると使えます';
 }
-slider.addEventListener('input', () => { speedIndex = Number(slider.value); updatePlayback(); saveUI(); });
-skipButton.addEventListener('click', () => { skip = !skip; updatePlayback(); saveUI(); });
 pauseButton.addEventListener('click', () => { paused = !paused; mind.setPaused(paused); updatePlayback(); });
 stepButton.addEventListener('click', () => { if (paused) mind.stepOnce(); });
 updatePlayback();
-speedBox.append(speedLabel, skipButton, pauseButton, stepButton);
 
-// 設定（システム設定）。音と「最初からやり直す」
-const settingsButton = document.createElement('button');
-settingsButton.type = 'button';
-settingsButton.className = 'settings-button';
-settingsButton.textContent = '設定';
+// ---- 設定。速さ、演出を飛ばす、音、最初からやり直す ----
 const settings = document.createElement('dialog');
 settings.className = 'settings';
 const settingsTitle = document.createElement('h2');
-settingsTitle.textContent = '暮らしの設定';
+settingsTitle.textContent = '設定';
 settingsTitle.id = 'settings-title';
 settings.setAttribute('aria-labelledby', settingsTitle.id);
-// 音の設定
-function soundToggle(text, key) {
+
+function row(icon, text, control) {
   const label = document.createElement('label');
   label.className = 'settings-row';
-  const box = document.createElement('input');
-  box.type = 'checkbox';
-  box.checked = sound.settings[key];
-  box.addEventListener('change', () => sound.set({ [key]: box.checked }));
-  label.append(box, text);
+  const pic = document.createElement('span');
+  pic.className = 'settings-icon';
+  pic.innerHTML = ICONS[icon];
+  const name = document.createElement('span');
+  name.className = 'settings-name';
+  name.textContent = text;
+  label.append(pic, name, control);
   return label;
 }
-const volumeRow = document.createElement('label');
-volumeRow.className = 'settings-row';
-const volume = document.createElement('input');
-volume.type = 'range';
-volume.min = '0';
-volume.max = '1';
-volume.step = '0.05';
-volume.value = String(sound.settings.volume);
-volume.addEventListener('input', () => sound.set({ volume: Number(volume.value) }));
-volumeRow.append('音量', volume);
+function toggle(checked, onChange) {
+  const box = document.createElement('input');
+  box.type = 'checkbox';
+  box.checked = checked;
+  box.addEventListener('change', () => onChange(box.checked));
+  return box;
+}
+function range(min, max, step, value, onInput) {
+  const input = document.createElement('input');
+  input.type = 'range';
+  input.min = String(min);
+  input.max = String(max);
+  input.step = String(step);
+  input.value = String(value);
+  input.addEventListener('input', () => onInput(Number(input.value)));
+  return input;
+}
+
+// 速さ（かめ ←→ うさぎ）
+const slider = range(0, 9, 1, speedIndex, (value) => { speedIndex = value; updateSpeed(); saveUI(); });
+slider.className = 'speed-slider';
+slider.setAttribute('aria-label', '演出の速さ');
+const speedRow = document.createElement('div');
+speedRow.className = 'settings-row speed-row';
+const slow = document.createElement('span');
+slow.className = 'settings-icon';
+slow.innerHTML = ICONS.turtle;
+slow.title = 'ゆっくり';
+const fast = document.createElement('span');
+fast.className = 'settings-icon';
+fast.innerHTML = ICONS.rabbit;
+fast.title = 'はやい';
+speedRow.append(slow, slider, fast);
+function updateSpeed() {
+  slider.setAttribute('aria-valuetext', `${speedIndex + 1} / 10、1 手順 ${SPEEDS[speedIndex]} ミリ秒`);
+}
+updateSpeed();
+const skipBox = toggle(skip, (value) => { skip = value; saveUI(); });
+skipBox.className = 'skip-box';
+
+const playBox = document.createElement('div');
+playBox.className = 'settings-group';
+playBox.append(speedRow, row('skip', '演出を飛ばす', skipBox));
+
 const soundBox = document.createElement('div');
 soundBox.className = 'settings-group';
-soundBox.append(soundToggle('音楽', 'bgm'), soundToggle('効果音', 'sfx'), volumeRow);
+soundBox.append(
+  row('music', '音楽', toggle(sound.settings.bgm, (value) => sound.set({ bgm: value }))),
+  row('sfx', '効果音', toggle(sound.settings.sfx, (value) => sound.set({ sfx: value }))),
+  row('sfx', '音量', range(0, 1, 0.05, sound.settings.volume, (value) => sound.set({ volume: value }))),
+);
 
-const resetNote = document.createElement('p');
-resetNote.textContent = '育てた中身（集計表と短期記憶）をすべて消して、空の状態に戻します。';
 const resetButton = document.createElement('button');
 resetButton.type = 'button';
 resetButton.className = 'reset-button';
 resetButton.textContent = '最初からやり直す';
+resetButton.title = '育てた中身（集計表と短期記憶）をすべて消して、空の状態に戻します';
 resetButton.addEventListener('click', reset);
-const closeButton = document.createElement('button');
-closeButton.type = 'button';
-closeButton.textContent = '閉じる';
+const closeButton = iconButton('close', '閉じる', 'settings-close');
 closeButton.addEventListener('click', () => settings.close());
-settings.append(settingsTitle, soundBox, resetNote, resetButton, closeButton);
+settings.append(closeButton, settingsTitle, playBox, soundBox, resetButton);
 settingsButton.addEventListener('click', () => settings.showModal());
-
-// 頭の中をのぞく（集計表の全体をいつでも見られる）
-const exploreButton = document.createElement('button');
-exploreButton.type = 'button';
-exploreButton.className = 'settings-button';
-exploreButton.textContent = '頭の中を見る';
-exploreButton.disabled = true;
-exploreButton.addEventListener('click', async () => {
-  if (exploreButton.dataset.open !== 'true' && busy) return;
-  exploreButton.disabled = true;
-  const open = await mind.toggleExplore();
-  exploreButton.dataset.open = String(open);
-  exploreButton.textContent = open ? '家にもどる' : '頭の中を見る';
-  busy = open;
-  bottom.disabled = open;
-  exploreButton.disabled = false;
+// 外側（背景）を押しても閉じる
+settings.addEventListener('click', (ev) => {
+  const r = settings.getBoundingClientRect();
+  if (ev.target === settings && (ev.clientX < r.left || ev.clientX > r.right || ev.clientY < r.top || ev.clientY > r.bottom)) settings.close();
 });
 
-const topRight = document.createElement('div');
-topRight.className = 'top-right';
-topRight.append(exploreButton, speedBox, settingsButton);
-top.append(title, topRight);
-
-// 中: 3D の部屋
+// 中: 3D の家（画面全体）
 const stageRoot = document.createElement('section');
 
-// 下: パートとタブ。演出中は fieldset ごと操作できなくする
-const bottom = document.createElement('fieldset');
-bottom.className = 'bottom';
-bottom.setAttribute('aria-label', '空モデルのお世話');
-const tabs = document.createElement('nav');
-tabs.className = 'tabs';
+// 下: 部屋のものを押すと出る入力。演出中は隠す
+const dock = document.createElement('div');
+dock.className = 'dock';
+dock.hidden = true;
 
-app.replaceChildren(top, stageRoot, bottom, settings);
+app.replaceChildren(stageRoot, logo, hud, dock, settings);
+
+// スマホでキーボードが出たとき、見えている範囲に画面を収める
+if (window.visualViewport && matchMedia('(pointer: coarse)').matches) {
+  const fit = () => {
+    app.style.height = `${window.visualViewport.height}px`;
+    window.scrollTo(0, 0);
+  };
+  window.visualViewport.addEventListener('resize', fit);
+  window.visualViewport.addEventListener('scroll', fit);
+}
 
 const model = createModel();
 const saved = load();
 if (saved) model.restore(saved);
 
-bottom.disabled = true;
 let mind;
 try {
   mind = await createStage(stageRoot, model);
@@ -179,23 +183,39 @@ try {
   throw e;
 }
 mind.syncMemory(model.shortMemory);
-pauseButton.disabled = false;
-bottom.disabled = false;
-exploreButton.disabled = false;
 
-let busy = false;
+// ---- 操作の状態 ----
+let busy = false;      // 演出中、または頭の中をのぞいている
+let exploring = false;
+let openPart = null;   // 開いている入力（'talk' | 'listen' | 'sleep' | null）
+const partRoots = {};
+
+function refresh() {
+  app.dataset.busy = String(busy);
+  mind.setInteractive(!busy);
+  dock.hidden = busy || openPart === null;
+  for (const [id, root] of Object.entries(partRoots)) root.hidden = id !== openPart;
+  homeButton.hidden = !exploring;
+  pauseButton.hidden = !busy || exploring;
+  stepButton.hidden = !busy || exploring;
+}
+
+function setPart(id) {
+  openPart = id;
+  refresh();
+  if (id) partRoots[id].dispatchEvent(new Event('open'));
+}
+
 async function run(fn) {
   if (busy) return;
   busy = true;
-  bottom.disabled = true;
-  exploreButton.disabled = true;
+  refresh();
   try {
     await fn();
   } finally {
     save(model);
-    bottom.disabled = false;
-    exploreButton.disabled = false;
     busy = false;
+    refresh();
   }
 }
 
@@ -216,28 +236,54 @@ function reset() {
   location.reload();
 }
 
-const ctx = { model, mind, show, run, getStep };
-const partRoots = PARTS.map((part) => {
+// 頭の中をのぞく（集計表の全体をいつでも見られる）。黒板を押すと開き、家のボタンで閉じる
+async function toggleExplore() {
+  if (exploring ? homeButton.disabled : busy) return;
+  homeButton.disabled = true;
+  if (!exploring) {
+    busy = true;
+    exploring = true;
+    refresh();
+    await mind.toggleExplore();
+  } else {
+    await mind.toggleExplore();
+    exploring = false;
+    busy = false;
+    refresh();
+  }
+  homeButton.disabled = false;
+}
+homeButton.addEventListener('click', toggleExplore);
+
+const ctx = { model, mind, show, run, getStep, close: () => setPart(null) };
+for (const part of PARTS) {
   const root = document.createElement('section');
-  root.classList.add('part');
+  root.className = `part ${part.id}`;
+  root.hidden = true;
   part.create(root, ctx);
-  const tab = document.createElement('button');
-  tab.type = 'button';
-  const icon = document.createElement('span');
-  icon.className = 'tab-icon';
-  icon.setAttribute('aria-hidden', 'true');
-  icon.textContent = { talk: '💬', listen: '👂', sleep: '☾' }[part.id];
-  tab.append(icon, part.name);
-  tab.addEventListener('click', () => {
-    for (const r of partRoots) r.hidden = r !== root;
-    pressOnly(tabs, tab);
-    save(model); // パートを切り替えるたびに保存する
-  });
-  tabs.append(tab);
-  return root;
+  partRoots[part.id] = root;
+  dock.append(root);
+}
+
+// 部屋のものが押された。同じものをもう一度押すか、何もないところを押すと閉じる
+mind.onAction((id) => {
+  mind.showIdle();
+  if (id === 'explore') {
+    setPart(null);
+    void toggleExplore();
+  } else {
+    setPart(id === openPart ? null : id);
+    save(model); // 操作を切り替えるたびに保存する
+  }
 });
-bottom.append(...partRoots, tabs);
-tabs.firstElementChild.click();
+document.addEventListener('keydown', (ev) => {
+  if (ev.key !== 'Escape' || settings.open) return;
+  if (exploring) void toggleExplore();
+  else if (!busy) setPart(null);
+});
+
+refresh();
 
 // コンソールから確認できるように公開する
 window.kara = model;
+window.karaPoint = mind.hotPoint;

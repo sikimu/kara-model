@@ -58,6 +58,22 @@ export async function createStage(root, model) {
   let incoming = null;   // 広場で出た吹き出し（次の hear でかごへ飛ぶ）
   let exploring = false;
 
+  // 一時停止とコマ送り。トレースの 1 手順ごとに gate() で待つ
+  let paused = false;
+  let waiter = null;
+  function gate() {
+    if (!paused) return undefined;
+    return new Promise((resolve) => { waiter = resolve; });
+  }
+  function release() {
+    waiter?.();
+    waiter = null;
+  }
+  function setPaused(value) {
+    paused = value;
+    if (!paused) release();
+  }
+
   // 広場で話す人（最大 4 人）。ふだんは隠しておく
   const npcs = NPC_COLORS.map((color) => {
     const npc = room.npc.clone(true);
@@ -123,6 +139,7 @@ export async function createStage(root, model) {
       { label: '数えた回数', value: `${s.total} 回` },
       { label: '眠った回数', value: `${s.sleeps} 回` },
     ]);
+    actor.setGrowth(s.kinds);
   }
 
   // ---- 短期記憶（かごの上の札） ----
@@ -217,7 +234,10 @@ export async function createStage(root, model) {
     const opening = mind.open('infer', headOnScreen(), step * 4);
     wait(step * 2).then(() => { caption.textContent = ''; });
     await opening;
-    for (const ev of trace) await mind.handle(ev, getStep());
+    for (const ev of trace) {
+      await gate();
+      await mind.handle(ev, getStep());
+    }
     await mind.close(getStep() * 2);
 
     step = getStep();
@@ -254,7 +274,10 @@ export async function createStage(root, model) {
     // 眠る前の短期記憶（これから思い出す文）を夢の画面に渡す
     const remembered = trace.filter((ev) => ev.type === 'replay').map((ev) => ev.text);
     await mind.open('learn', room.screenPos(above(P.bedTop, 0, 0.5, -0.8)), getStep() * 4, remembered);
-    for (const ev of trace) await mind.handle(ev, getStep());
+    for (const ev of trace) {
+      await gate();
+      await mind.handle(ev, getStep());
+    }
     // 夢の中でおぼえた文は、かごからなくなる
     mem.forEach((m) => remove(m.sprite));
     mem = [];
@@ -284,6 +307,7 @@ export async function createStage(root, model) {
     } else {
       for (const ev of trace) {
         // 知らない type は無視する
+        await gate();
         await handlers[ev.type]?.(ev, getStep());
       }
     }
@@ -367,7 +391,33 @@ export async function createStage(root, model) {
     return exploring;
   }
 
+  // なでる: キャラクターをクリックすると、よろこぶ
+  const raycaster = new THREE.Raycaster();
+  let petting = false;
+  root.addEventListener('pointerdown', async (ev) => {
+    if (petting || mind.isOpen) return;
+    const box = root.getBoundingClientRect();
+    const point = new THREE.Vector2(
+      (ev.clientX - box.left) / box.width * 2 - 1,
+      -((ev.clientY - box.top) / box.height) * 2 + 1,
+    );
+    raycaster.setFromCamera(point, room.camera);
+    if (raycaster.intersectObject(actor.root, true).length === 0) return;
+    petting = true;
+    sound.play('pet');
+    const heart = put(makeLabel('♥', { size: 0.4, bg: '#ffe3ea', color: '#e0507a', border: '#f3a6bd' }),
+      above(actor.root.position, 0, 1.7, 0));
+    actor.cheer = true;
+    if (!actor.lying) actor.hop(300, 0.25);
+    await fadeAway(heart, 900);
+    actor.cheer = false;
+    petting = false;
+  });
+
   updateMemCount();
   updateBoard();
-  return { play, say, showIdle, syncMemory, goListen, speak, comeBack, toggleExplore, npcColors: NPC_COLORS };
+  return {
+    play, say, showIdle, syncMemory, goListen, speak, comeBack, toggleExplore,
+    setPaused, stepOnce: release, npcColors: NPC_COLORS,
+  };
 }

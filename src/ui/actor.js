@@ -27,6 +27,7 @@ export function createActor(room) {
     hop,
     lieDown,
     getUp,
+    setGrowth,
   };
 
   let walking = 0; // 歩きの進み具合（足を動かす用）。歩いていないときは 0
@@ -57,6 +58,11 @@ export function createActor(room) {
       a.rotation.x = walking > 0 ? Math.sin(walking * Math.PI * 2 + i * Math.PI) * 0.6 : 0;
     });
   });
+
+  // 育ち具合（おぼえた文字の種類）に合わせて、頭の芽を大きくする
+  function setGrowth(kinds) {
+    sprout.scale.setScalar(1 + Math.min(kinds, 80) / 40);
+  }
 
   function turnTo(angle, ms) {
     const from = root.rotation.y;

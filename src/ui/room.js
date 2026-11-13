@@ -240,6 +240,7 @@ export async function createRoom(root) {
 
   return {
     scene,
+    camera,
     character: charGltf.scene,
     npc: npcGltf.scene, // 広場で話す人のひな形（場面には足していない）
     board,

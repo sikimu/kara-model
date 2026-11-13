@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-const DAY = { sky: new THREE.Color(0xf4f1ea), hemi: 2.2, sun: 2.0 };
+const DAY = { sky: new THREE.Color(0xdff1f7), hemi: 2.2, sun: 2.0 };
 const NIGHT = { sky: new THREE.Color(0x1d2440), hemi: 0.55, sun: 0.25 };
 const FONT = '"Hiragino Sans", "Yu Gothic UI", "Noto Sans JP", sans-serif';
 
@@ -189,9 +189,10 @@ export async function createRoom(root) {
   scene.add(hemi, sun);
 
   const loader = new GLTFLoader();
-  const [roomGltf, charGltf] = await Promise.all([
+  const [roomGltf, charGltf, npcGltf] = await Promise.all([
     loader.loadAsync('./assets/room.glb'),
     loader.loadAsync('./assets/character.glb'),
+    loader.loadAsync('./assets/npc.glb'),
   ]);
   scene.add(roomGltf.scene, charGltf.scene);
   scene.updateMatrixWorld(true);
@@ -202,8 +203,14 @@ export async function createRoom(root) {
   const board = createBoard(roomGltf.scene.getObjectByName('board_face'));
   scene.add(board.mesh);
 
-  // 部屋全体が画面に収まるようにカメラを引く
-  const target = new THREE.Vector3(0, 1.25, -0.2);
+  // カメラの構図。house: 家に寄る、world: 家と広場の全体
+  const SHOTS = {
+    house: { target: new THREE.Vector3(-1.6, 1.4, -0.1), halfW: 4.9, halfH: 4.5 },
+    world: { target: new THREE.Vector3(-3.25, 1.6, -0.2), halfW: 6.8, halfH: 4.5 },
+  };
+  const target = SHOTS.house.target.clone();
+  let halfW = SHOTS.house.halfW;
+  let halfH = SHOTS.house.halfH;
   const dir = new THREE.Vector3(0, 0.66, 0.75).normalize();
   function resize() {
     const w = root.clientWidth;
@@ -212,13 +219,26 @@ export async function createRoom(root) {
     renderer.setSize(w, h);
     camera.aspect = w / h;
     const t = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-    const dist = Math.max(3.25 / (t * camera.aspect), 4.2 / t);
+    const dist = Math.max(halfW / (t * camera.aspect), halfH / t);
     camera.position.copy(target).addScaledVector(dir, dist);
     camera.lookAt(target);
     camera.updateProjectionMatrix();
   }
   new ResizeObserver(resize).observe(root);
   resize();
+
+  // 構図を切り替える（ms かけてなめらかに動かす）
+  function setShot(name, ms) {
+    const to = SHOTS[name];
+    const from = { target: target.clone(), halfW, halfH };
+    return tween(ms, (k) => {
+      const e = k * k * (3 - 2 * k);
+      target.lerpVectors(from.target, to.target, e);
+      halfW = from.halfW + (to.halfW - from.halfW) * e;
+      halfH = from.halfH + (to.halfH - from.halfH) * e;
+      resize();
+    });
+  }
 
   // 時間で動かす仕組み。tween(ms, fn) は fn(0..1) を毎フレーム呼び、終わると解決する
   const tweens = new Set();
@@ -262,6 +282,7 @@ export async function createRoom(root) {
   return {
     scene,
     character: charGltf.scene,
+    npc: npcGltf.scene, // 広場で話す人のひな形（場面には足していない）
     dice: roomGltf.scene.getObjectByName('dice'),
     board,
     at,
@@ -269,6 +290,7 @@ export async function createRoom(root) {
     wait,
     onFrame: (fn) => frameHandlers.push(fn),
     setNight,
+    setShot,
     fadeNight,
   };
 }

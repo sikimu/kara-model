@@ -1,4 +1,4 @@
-# assets/character.glb と assets/room.glb を作る。
+# assets/character.glb、assets/room.glb、assets/npc.glb を作る。
 # 使い方: blender -b -P blender/build_assets.py
 #
 # 位置は three.js の座標（x: 右、y: 上、z: 手前）で書き、T() で Blender の座標に直す。
@@ -184,12 +184,13 @@ def build_room():
         (0.9, 0.5, 0.42), (0.95, 0.78, 0.4), (0.55, 0.75, 0.6),
         (0.5, 0.68, 0.88), (0.75, 0.6, 0.85), (0.95, 0.65, 0.75)])]
 
-    W, D, H = 5.6, 6.4, 3.4  # 部屋の幅、奥行き、壁の高さ
+    W, D, H = 5.6, 6.4, 4.2  # 部屋の幅、奥行き、壁の高さ
 
     box('floor', S(W, 0.2, D), wood, T(0, -0.1, 0), bevel=0)
     cone('rug', 1.35, 1.35, 0.03, rug, T(0, 0.015, 0.5))
     box('wall_back', S(W, H, 0.2), wall, T(0, H / 2, -D / 2 - 0.1), bevel=0)
-    box('wall_left', S(0.2, H, D + 0.2), wall, T(-W / 2 - 0.1, H / 2, -0.1), bevel=0)
+    # 左の壁は手前を空けて、外の広場への出入り口にする
+    box('wall_left', S(0.2, H, 5.2), wall, T(-W / 2 - 0.1, H / 2, -0.7), bevel=0)
     box('wall_right', S(0.2, H, D + 0.2), wall, T(W / 2 + 0.1, H / 2, -0.1), bevel=0)
 
     # 棚（集計表）。奥の壁の中央
@@ -213,10 +214,10 @@ def build_room():
             n += 1
 
     # 黒板（今引いている行を出す）。面の大きさは board_face の scale で渡す
-    bw, bh = 4.4, 1.7
-    box('board', S(bw + 0.16, bh + 0.16, 0.08), wood_dark, T(0, 2.45, -D / 2 + 0.04), bevel=0.02)
-    box('board_slate', S(bw, bh, 0.04), board, T(0, 2.45, -D / 2 + 0.08), bevel=0)
-    empty('board_face', T(0, 2.45, -D / 2 + 0.11), scale=S(bw, bh, 1))
+    bw, bh = 5.0, 2.3
+    box('board', S(bw + 0.16, bh + 0.16, 0.08), wood_dark, T(0, 2.85, -D / 2 + 0.04), bevel=0.02)
+    box('board_slate', S(bw, bh, 0.04), board, T(0, 2.85, -D / 2 + 0.08), bevel=0)
+    empty('board_face', T(0, 2.85, -D / 2 + 0.11), scale=S(bw, bh, 1))
 
     # サイコロ台
     table = empty('table', T(-1.7, 0, 1.7))
@@ -260,9 +261,59 @@ def build_room():
     empty('basket_top', T(-2.05, 0.7, -0.5))
     empty('horn_mouth', T(W / 2 - 0.85, 1.45, -0.5))
     empty('ear', T(-2.05, 3.3, -0.5))
+
+    # ---- 外の広場（盗み聞きの場所）。家の左どなり ----
+    grass = mat('grass', (0.66, 0.83, 0.52), rough=0.95)
+    leaf = mat('leaf', (0.42, 0.68, 0.4), rough=0.9)
+    leaf_light = mat('leaf_light', (0.56, 0.78, 0.45), rough=0.9)
+    stone = mat('stone', (0.86, 0.84, 0.78), rough=0.9)
+    PW = 6.6  # 広場の幅
+    px = -W / 2 - 0.2 - PW / 2  # 広場の中心の x
+    box('plaza', S(PW, 0.2, D), grass, T(px, -0.1, 0), bevel=0)
+    cone('plaza_circle', 1.7, 1.7, 0.03, stone, T(px - 0.6, 0.015, -0.1))
+    for i, (x, z) in enumerate(((-3.35, 2.6), (-3.95, 2.45), (-4.5, 2.2))):
+        cone(f'step{i}', 0.24, 0.24, 0.03, stone, T(x, 0.015, z))
+    # 茂み（隠れる場所）
+    bush = empty('bush', T(-5.0, 0, 1.25))
+    for i, (x, y, z, r) in enumerate(((0, 0.38, 0, 0.5), (-0.42, 0.3, 0.12, 0.38),
+                                      (0.4, 0.28, -0.1, 0.36), (0.05, 0.62, -0.05, 0.3))):
+        sphere(f'bush{i}', r, leaf if i % 2 == 0 else leaf_light, T(x, y, z), parent=bush)
+    # 木とベンチ
+    tree = empty('tree', T(px - 2.3, 0, -2.2))
+    cone('tree_trunk', 0.2, 0.14, 1.5, wood_dark, T(0, 0.75, 0), parent=tree)
+    sphere('tree_top0', 0.95, leaf, T(0, 2.1, 0), parent=tree)
+    sphere('tree_top1', 0.65, leaf_light, T(0.55, 1.75, 0.3), parent=tree)
+    sphere('tree_top2', 0.6, leaf_light, T(-0.5, 1.8, 0.2), parent=tree)
+    bench = empty('bench', T(px + 0.9, 0, -2.6))
+    box('bench_seat', S(1.6, 0.08, 0.45), wood, T(0, 0.45, 0), parent=bench, bevel=0.02)
+    box('bench_back', S(1.6, 0.4, 0.07), wood, T(0, 0.85, -0.2), parent=bench, bevel=0.02)
+    for i, x in enumerate((-0.65, 0.65)):
+        box(f'bench_leg{i}', S(0.08, 0.45, 0.4), wood_dark, T(x, 0.225, 0), parent=bench, bevel=0.01)
+
+    empty('at_door_in', T(-2.1, 0, 2.65))
+    empty('at_door_out', T(-3.6, 0, 2.6))
+    empty('at_hide', T(-4.35, 0, 1.7))
+    empty('plaza_center', T(px - 0.6, 0, -0.1))
     export('room.glb')
+
+
+# ---------------------------------------------------------------- 広場で話す人
+def build_npc():
+    reset()
+    skin = mat('npc_skin', (0.98, 0.86, 0.74), rough=0.6)
+    cloth = mat('npc_cloth', (0.9, 0.9, 0.9), rough=0.7)  # 色は three.js 側で人ごとに変える
+    dark = mat('dark', (0.16, 0.15, 0.2), rough=0.3)
+    root = empty('npc', (0, 0, 0))
+    sphere('npc_body', 0.36, cloth, T(0, 0.5, 0), scale=(1, 0.9, 1.4), parent=root)
+    head = empty('npc_head', T(0, 1.22, 0), root)
+    sphere('npc_head_mesh', 0.3, skin, (0, 0, 0), parent=head)
+    sphere('npc_hat', 0.31, cloth, T(0, 0.08, -0.02), scale=(1.02, 1.02, 0.8), parent=head)
+    for side, x in (('L', -0.11), ('R', 0.11)):
+        sphere('npc_eye' + side, 0.04, dark, T(x, -0.03, 0.27), scale=(1, 0.5, 1.3), parent=head)
+    export('npc.glb')
 
 
 build_character()
 build_room()
+build_npc()
 print('done')

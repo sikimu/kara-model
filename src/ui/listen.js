@@ -1,37 +1,91 @@
-// 盗み聞きパート。文章を聞かせて短期記憶にためる（集計表は変えない）。
+// 盗み聞きパート。広場で話す人数とそれぞれの言葉を決めて、キャラクターに聞きに行かせる。
+// 聞いた文は短期記憶にたまるだけで、集計表は変わらない。
 
 import { MEMORY_CAPACITY } from '../model/model.js';
 
-export function createListen(root, { model, mind, show, run }) {
+const MAX_PEOPLE = 4;
+const SAMPLES = ['おはよう\nいいてんきだね', 'おはよう\nそうだね', 'やあ\nまたね', 'こんにちは'];
+
+export function createListen(root, { model, mind, show, run, getStep }) {
   root.classList.add('listen');
 
-  const hint = document.createElement('p');
+  const head = document.createElement('div');
+  head.className = 'listen-head';
+  const label = document.createElement('span');
+  label.textContent = '話す人数';
+  const counts = document.createElement('div');
+  counts.className = 'listen-counts';
+  const hint = document.createElement('span');
   hint.className = 'part-hint';
-  hint.textContent = `1 行が 1 文。おぼえていられるのは ${MEMORY_CAPACITY} 文まで。眠るまで返事は変わらない`;
+  hint.textContent = `1 行が 1 文。1 人目から順番に 1 文ずつ話す。おぼえていられるのは ${MEMORY_CAPACITY} 文まで`;
+  const go = document.createElement('button');
+  go.type = 'button';
+  go.className = 'listen-go';
+  go.textContent = '聞きに行く';
+  head.append(label, counts, hint, go);
 
-  const form = document.createElement('form');
-  form.className = 'listen-form';
-  const area = document.createElement('textarea');
-  area.placeholder = 'おはよう\nおやすみ';
-  area.rows = 2;
-  const button = document.createElement('button');
-  button.type = 'submit';
-  button.textContent = '聞かせる';
-  form.append(area, button);
+  const people = document.createElement('div');
+  people.className = 'listen-people';
+  const areas = [];
+  for (let i = 0; i < MAX_PEOPLE; i++) {
+    const box = document.createElement('label');
+    box.className = 'listen-person';
+    const name = document.createElement('span');
+    name.textContent = `${i + 1} 人目`;
+    name.style.borderColor = mind.npcColors[i];
+    const area = document.createElement('textarea');
+    area.placeholder = SAMPLES[i];
+    box.append(name, area);
+    people.append(box);
+    areas.push({ box, area });
+  }
 
-  root.replaceChildren(hint, form);
+  let count = 2;
+  function setCount(n) {
+    count = n;
+    areas.forEach(({ box }, i) => { box.hidden = i >= n; });
+    [...counts.children].forEach((b, i) => b.setAttribute('aria-pressed', String(i + 1 === n)));
+  }
+  for (let n = 1; n <= MAX_PEOPLE; n++) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = `${n} 人`;
+    b.addEventListener('click', () => setCount(n));
+    counts.append(b);
+  }
+  setCount(count);
 
-  form.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const lines = area.value.split('\n').map((s) => s.trim()).filter(Boolean);
-    if (lines.length === 0) return;
+  root.replaceChildren(head, people);
+
+  go.addEventListener('click', () => {
+    // 1 人目の 1 文目、2 人目の 1 文目、…、1 人目の 2 文目、… の順に話す
+    const lines = areas.slice(0, count)
+      .map(({ area }) => area.value.split('\n').map((s) => s.trim()).filter(Boolean));
+    const script = [];
+    for (let k = 0; lines.some((l) => k < l.length); k++) {
+      lines.forEach((l, speaker) => {
+        if (k < l.length) script.push({ speaker, text: l[k] });
+      });
+    }
+    if (script.length === 0) {
+      mind.say('話す言葉を入れてください');
+      return;
+    }
 
     run(async () => {
-      area.value = '';
-      mind.showIdle();
-      mind.say('耳をすませている…');
-      const trace = lines.flatMap((line) => model.hear(line).trace);
-      await show(trace);
+      if (getStep() === 0) {
+        // 飛ばす: 聞いた結果だけ反映する
+        for (const { text } of script) model.hear(text);
+        mind.showIdle();
+        await show([]);
+        return;
+      }
+      await mind.goListen(count, getStep);
+      for (const { speaker, text } of script) {
+        await mind.speak(speaker, text, model.hear(text).trace, getStep);
+      }
+      await mind.comeBack(getStep);
+      mind.syncMemory(model.shortMemory);
     });
   });
 }

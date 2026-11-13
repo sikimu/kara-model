@@ -1,3 +1,4 @@
+/* PC の大きな画面（横長）を基準にする */
 :root {
   --bg: #f4f1ea;
   --panel: #fffdf8;
@@ -15,14 +16,14 @@ html, body {
   height: 100%;
   background: var(--bg);
   color: var(--text);
-  font-family: sans-serif;
+  font-family: "Yu Gothic UI", "Hiragino Sans", "Noto Sans JP", sans-serif;
   overscroll-behavior: none;
 }
+button { font: inherit; cursor: pointer; }
+button:disabled { cursor: default; }
 
 #app {
   height: 100dvh;
-  max-width: 520px;
-  margin: 0 auto;
   display: flex;
   flex-direction: column;
 }
@@ -31,27 +32,61 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 6px 12px;
+  gap: 12px;
+  padding: 8px 20px;
 }
-.top h1 { font-size: 0.9rem; margin: 0; }
-.speed { display: flex; gap: 4px; flex-shrink: 0; }
-.speed button {
+.top h1 { font-size: 1.05rem; margin: 0; }
+.top-right { display: flex; align-items: center; gap: 16px; }
+.speed { display: flex; gap: 4px; }
+.speed button, .settings-button, .listen-counts button {
   white-space: nowrap;
-  font-size: 0.75rem;
-  padding: 4px 8px;
+  font-size: 0.85rem;
+  padding: 5px 14px;
   border: 1px solid var(--line);
   border-radius: 999px;
   background: var(--panel);
   color: var(--text);
 }
-.speed button[aria-pressed="true"] {
+.speed button[aria-pressed="true"], .listen-counts button[aria-pressed="true"] {
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
 }
 
-/* 3D の部屋 */
+/* 設定 */
+.settings {
+  width: min(420px, 90vw);
+  padding: 20px 24px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+  color: var(--text);
+}
+.settings::backdrop { background: rgba(0, 0, 0, 0.35); }
+.settings h2 { margin: 0 0 12px; font-size: 1.1rem; }
+.settings p { margin: 0 0 12px; font-size: 0.9rem; color: var(--sub); }
+.settings button {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text);
+}
+.settings .reset-button { border-color: #c0392b; color: #c0392b; }
+.settings-group {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+.settings-row { display: flex; align-items: center; gap: 10px; }
+.settings-row input[type="range"] { flex: 1; }
+
+/* 3D の世界 */
 .stage3d {
   flex: 1;
   min-height: 0;
@@ -67,17 +102,17 @@ html, body {
 }
 .caption {
   position: absolute;
-  top: 6px;
+  top: 10px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 1;
   width: max-content;
   max-width: 92%;
-  padding: 4px 12px;
+  padding: 6px 18px;
   border-radius: 999px;
-  background: rgba(255, 253, 248, 0.9);
+  background: rgba(255, 253, 248, 0.92);
   color: var(--text);
-  font-size: 0.8rem;
+  font-size: 1rem;
   text-align: center;
   pointer-events: none;
 }
@@ -86,26 +121,27 @@ html, body {
 /* 下の段: パートとタブ */
 .bottom {
   flex: 0 0 auto;
+  width: min(1000px, 100%);
   min-width: 0;
-  margin: 0;
+  margin: 0 auto;
   border: none;
   display: flex;
   flex-direction: column;
-  padding: 6px 12px 10px;
-  gap: 6px;
+  padding: 10px 20px 14px;
+  gap: 8px;
 }
 .bottom:disabled { opacity: 0.6; }
 .part {
-  height: 7.2rem;
+  height: 9rem;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
-.tabs { display: flex; gap: 6px; }
+.tabs { display: flex; gap: 8px; }
 .tabs button {
   flex: 1;
-  font-size: 0.9rem;
-  padding: 8px 0;
+  font-size: 1rem;
+  padding: 9px 0;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--panel);
@@ -116,7 +152,7 @@ html, body {
   border-color: var(--text);
   color: #fff;
 }
-.part-hint { margin: 0; font-size: 0.72rem; color: var(--sub); }
+.part-hint { margin: 0; font-size: 0.85rem; color: var(--sub); }
 
 /* 会話 */
 .log {
@@ -128,27 +164,26 @@ html, body {
   gap: 4px;
 }
 .log-line {
-  max-width: 85%;
-  padding: 3px 10px;
+  max-width: 70%;
+  padding: 4px 12px;
   border-radius: 12px;
-  font-size: 0.9rem;
   overflow-wrap: anywhere;
 }
 .log-line.you { align-self: flex-end; background: #dcebf5; }
 .log-line.kara { align-self: flex-start; background: var(--panel); border: 1px solid var(--line); }
-.talk-form, .listen-form { display: flex; gap: 6px; }
-.talk-form input, .listen-form textarea {
+.talk-form { display: flex; gap: 8px; }
+.talk-form input, .listen-person textarea {
   flex: 1;
   min-width: 0;
   font: inherit;
-  font-size: 1rem; /* 16px 未満だと iOS が拡大する */
+  font-size: 1rem;
   padding: 8px 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
 }
-.talk-form button, .listen-form button, .sleep-button {
+.talk-form button, .listen-go, .sleep-button {
   font-size: 1rem;
-  padding: 8px 14px;
+  padding: 8px 20px;
   border: none;
   border-radius: 8px;
   background: var(--accent);
@@ -156,18 +191,13 @@ html, body {
 }
 
 /* 盗み聞き */
-.listen-form { flex: 1; min-height: 0; }
-.listen-form textarea { resize: none; }
+.listen-head { display: flex; align-items: center; gap: 10px; font-size: 0.9rem; }
+.listen-counts { display: flex; gap: 4px; }
+.listen-head .part-hint { flex: 1; }
+.listen-people { flex: 1; min-height: 0; display: flex; gap: 8px; }
+.listen-person { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; font-size: 0.8rem; }
+.listen-person span { align-self: flex-start; padding-left: 6px; border-left: 6px solid; line-height: 1.1; }
+.listen-person textarea { resize: none; }
 
 /* 睡眠 */
-.sleep-button { padding: 10px; }
-.reset-button {
-  margin-top: auto;
-  align-self: center;
-  font-size: 0.75rem;
-  padding: 4px 12px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: transparent;
-  color: var(--sub);
-}
+.sleep-button { padding: 14px; }

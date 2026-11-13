@@ -1,6 +1,6 @@
 // 睡眠パート。短期記憶を再生して集計表を更新する。学習が起きるのはここだけ。
 
-export function createSleep(root, { model, mind, show, run, reset }) {
+export function createSleep(root, { model, mind, show, run }) {
   root.classList.add('sleep');
 
   const hint = document.createElement('p');
@@ -12,13 +12,7 @@ export function createSleep(root, { model, mind, show, run, reset }) {
   button.className = 'sleep-button';
   button.textContent = '眠らせる';
 
-  const resetButton = document.createElement('button');
-  resetButton.type = 'button';
-  resetButton.className = 'reset-button';
-  resetButton.textContent = '最初からやり直す';
-  resetButton.addEventListener('click', reset);
-
-  root.replaceChildren(hint, button, resetButton);
+  root.replaceChildren(hint, button);
 
   button.addEventListener('click', () => {
     run(async () => {

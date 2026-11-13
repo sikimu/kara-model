@@ -13,8 +13,8 @@
 - HTML は文字入力・タブ・速度切り替えなど最小限にする。「ブラウザゲーム感」のあるパネル UI にしない
 - キャラクターや小物は Blender で作る（`blender/build_assets.py` から glb を書き出す。手作業の編集はしない）
 - 保存は localStorage
-- 音声は扱わない
-- スマホ縦画面で遊べることを優先する
+- 音楽と効果音は Web Audio API でその場で合成する（音声ファイルは置かない）。音声の認識や読み上げは扱わない
+- PC の大きな画面（横長）で遊ぶことを優先する。スマホ対応は後回し
 
 ## 設計の原則
 
@@ -35,7 +35,8 @@ src/model/chips/    チップ（1 ファイル 1 チップ）
 src/ui/             画面と演出（3D の部屋でトレースを再生）
 src/save.js         セーブとロード
 assets/character.glb  Blender から書き出したキャラクター
-assets/room.glb       Blender から書き出した部屋と小物、立ち位置の目印
+assets/room.glb       Blender から書き出した家・広場・小物、立ち位置の目印
+assets/npc.glb        Blender から書き出した、広場で話す人
 blender/build_assets.py  assets/ の glb を作る Blender スクリプト
 ```
 

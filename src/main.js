@@ -6,6 +6,7 @@ import { createTalk } from './ui/talk.js';
 import { createListen } from './ui/listen.js';
 import { createSleep } from './ui/sleep.js';
 import { save, load, clear } from './save.js';
+import { sound } from './ui/sound.js';
 
 // 演出の速度。値は 1 手順あたりの待ち時間（ミリ秒）。0 は再生しない
 const SPEEDS = [
@@ -45,7 +46,59 @@ for (const s of SPEEDS) {
   });
   speedBox.append(b);
 }
-top.append(title, speedBox);
+
+// 設定（システム設定）。音と「最初からやり直す」
+const settingsButton = document.createElement('button');
+settingsButton.type = 'button';
+settingsButton.className = 'settings-button';
+settingsButton.textContent = '設定';
+const settings = document.createElement('dialog');
+settings.className = 'settings';
+const settingsTitle = document.createElement('h2');
+settingsTitle.textContent = '設定';
+// 音の設定
+function soundToggle(text, key) {
+  const label = document.createElement('label');
+  label.className = 'settings-row';
+  const box = document.createElement('input');
+  box.type = 'checkbox';
+  box.checked = sound.settings[key];
+  box.addEventListener('change', () => sound.set({ [key]: box.checked }));
+  label.append(box, text);
+  return label;
+}
+const volumeRow = document.createElement('label');
+volumeRow.className = 'settings-row';
+const volume = document.createElement('input');
+volume.type = 'range';
+volume.min = '0';
+volume.max = '1';
+volume.step = '0.05';
+volume.value = String(sound.settings.volume);
+volume.addEventListener('input', () => sound.set({ volume: Number(volume.value) }));
+volumeRow.append('音量', volume);
+const soundBox = document.createElement('div');
+soundBox.className = 'settings-group';
+soundBox.append(soundToggle('音楽', 'bgm'), soundToggle('効果音', 'sfx'), volumeRow);
+
+const resetNote = document.createElement('p');
+resetNote.textContent = '育てた中身（集計表と短期記憶）をすべて消して、空の状態に戻します。';
+const resetButton = document.createElement('button');
+resetButton.type = 'button';
+resetButton.className = 'reset-button';
+resetButton.textContent = '最初からやり直す';
+resetButton.addEventListener('click', reset);
+const closeButton = document.createElement('button');
+closeButton.type = 'button';
+closeButton.textContent = '閉じる';
+closeButton.addEventListener('click', () => settings.close());
+settings.append(settingsTitle, soundBox, resetNote, resetButton, closeButton);
+settingsButton.addEventListener('click', () => settings.showModal());
+
+const topRight = document.createElement('div');
+topRight.className = 'top-right';
+topRight.append(speedBox, settingsButton);
+top.append(title, topRight);
 
 // 中: 3D の部屋
 const stageRoot = document.createElement('section');
@@ -56,7 +109,7 @@ bottom.className = 'bottom';
 const tabs = document.createElement('nav');
 tabs.className = 'tabs';
 
-app.replaceChildren(top, stageRoot, bottom);
+app.replaceChildren(top, stageRoot, bottom, settings);
 
 const model = createModel();
 const saved = load();
@@ -104,7 +157,7 @@ function reset() {
   location.reload();
 }
 
-const ctx = { model, mind, show, run, reset };
+const ctx = { model, mind, show, run, getStep: () => speed.step };
 const partRoots = PARTS.map((part) => {
   const root = document.createElement('section');
   root.classList.add('part');

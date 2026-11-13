@@ -1,5 +1,7 @@
 // キャラクターの動き。部品（体、目、足、腕）を名前で取り出して three.js 側で動かす。
 
+import { sound } from './sound.js';
+
 const ease = (k) => k * k * (3 - 2 * k);
 
 export function createActor(room) {
@@ -75,7 +77,12 @@ export function createActor(room) {
     if (dist > 0.05) {
       await turnTo(Math.atan2(dx, dz), step * 0.25);
       const steps = Math.max(1, Math.round(dist / 0.55));
+      let stepsDone = 0;
       await room.tween(step * (0.3 + dist * 0.28), (k) => {
+        if (step > 0 && Math.floor(k * steps * 2) > stepsDone) {
+          stepsDone = Math.floor(k * steps * 2);
+          sound.play('step');
+        }
         root.position.x = from.x + dx * k;
         root.position.z = from.z + dz * k;
         walking = k * steps;
@@ -89,6 +96,7 @@ export function createActor(room) {
 
   function hop(step, height = 0.35) {
     const y = root.position.y;
+    if (step > 0) sound.play('hop');
     return room.tween(step * 0.6, (k) => { root.position.y = y + Math.sin(k * Math.PI) * height; });
   }
 

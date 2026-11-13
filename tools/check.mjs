@@ -152,6 +152,40 @@ try {
   await sleep(1200);
   expect('頭の中から戻ると操作できる', (await busy()) === false);
 
+  // 本物のマウス操作: 一時停止、コマ送り、なでる
+  const click = async (x, y) => {
+    for (const type of ['mousePressed', 'mouseReleased']) {
+      await send('Input.dispatchMouseEvent', { type, x, y, button: 'left', clickCount: 1 });
+    }
+  };
+  const center = (selector) => evaluate(`(() => { const r = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
+  const clickOn = async (selector) => { const p = await center(selector); await click(p.x, p.y); };
+  await clickOn('.talk-form input');
+  await send('Input.insertText', { text: 'おはよう' });
+  await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r' });
+  await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+  await sleep(300);
+  expect('キーボードで入力して Enter で話しかけられる', (await busy()) === true);
+  await clickOn('.pause-button');
+  expect('一時停止ボタンが押された状態になる', (await evaluate(`document.querySelector('.pause-button').getAttribute('aria-pressed')`)) === 'true');
+  await sleep(6000);
+  expect('一時停止中は演出が終わらない', (await busy()) === true);
+  await shot('9-paused.png');
+  expect('一時停止中はコマ送りを押せる', (await evaluate(`document.querySelector('.step-button').disabled`)) === false);
+  await clickOn('.step-button');
+  await sleep(1500);
+  expect('コマ送りのあとも一時停止のまま', (await busy()) === true);
+  await clickOn('.pause-button');
+  await done();
+  expect('再開すると最後まで進む', (await evaluate(`document.querySelector('.log-line:last-child').classList.contains('kara')`)) === true);
+  // なでる: 画面上のキャラクターの位置を探してクリックする（3D なので、白い体の色の点を探す）
+  await shot('10-before-pet.png');
+  const stage = await evaluate(`(() => { const r = document.querySelector('.stage3d').getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; })()`);
+  await click(stage.x + stage.w * 0.57, stage.y + stage.h * 0.6);
+  await sleep(350);
+  await shot('11-pet.png');
+  await sleep(1200);
+
   // セーブ
   await load();
   s = await state();

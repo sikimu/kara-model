@@ -89,6 +89,11 @@ const now = () => ctx.currentTime;
 
 // ---- 効果音 ----
 const SFX = {
+  // もわもわ（頭の中へ切り替わる）
+  moya: () => {
+    [0, 1, 2].forEach((i) => tone(midi(72 + i * 4), { dur: 0.2, vol: 0.14, to: midi(77 + i * 4), at: now() + i * 0.14 }));
+    noise({ dur: 0.7, vol: 0.07, freq: 700, q: 0.5, at: now() + 0.42 });
+  },
   step: () => tone(170, { dur: 0.07, vol: 0.12, to: 90 }),
   hop: () => tone(420, { type: 'triangle', dur: 0.16, vol: 0.18, to: 840 }),
   pop: () => tone(900, { dur: 0.07, vol: 0.14, to: 1300 }),

@@ -23,6 +23,11 @@ def S(w, h, d):
     return (w, d, h)
 
 
+def RZ(deg):
+    """three.js の z 軸まわりの回転 → Blender の回転"""
+    return (0, -math.radians(deg), 0)
+
+
 def reset():
     for o in list(bpy.data.objects):
         bpy.data.objects.remove(o)
@@ -31,7 +36,7 @@ def reset():
 _mats = {}
 
 
-def mat(name, rgb, rough=0.7, metal=0.0):
+def mat(name, rgb, rough=0.7, metal=0.0, glow=0.0):
     if name in _mats:
         return _mats[name]
     m = bpy.data.materials.new(name)
@@ -50,6 +55,9 @@ def mat(name, rgb, rough=0.7, metal=0.0):
     bsdf.inputs['Base Color'].default_value = (*lin, 1.0)
     bsdf.inputs['Roughness'].default_value = rough
     bsdf.inputs['Metallic'].default_value = metal
+    if glow > 0 and 'Emission Color' in bsdf.inputs:
+        bsdf.inputs['Emission Color'].default_value = (*lin, 1.0)
+        bsdf.inputs['Emission Strength'].default_value = glow
     _mats[name] = m
     return m
 
@@ -68,18 +76,21 @@ def _finish(name, bm, material, loc, parent, smooth):
     return ob
 
 
-def sphere(name, r, material, loc, scale=(1, 1, 1), parent=None):
+def sphere(name, r, material, loc, scale=(1, 1, 1), parent=None, rot=(0, 0, 0), seg=32):
     bm = bmesh.new()
-    bmesh.ops.create_uvsphere(bm, u_segments=32, v_segments=16, radius=r)
+    bmesh.ops.create_uvsphere(bm, u_segments=seg, v_segments=seg // 2, radius=r)
     bmesh.ops.scale(bm, vec=scale, verts=bm.verts)
-    return _finish(name, bm, material, loc, parent, lambda p: True)
+    ob = _finish(name, bm, material, loc, parent, lambda p: True)
+    ob.rotation_euler = rot
+    return ob
 
 
-def box(name, size, material, loc, parent=None, bevel=0.03):
+def box(name, size, material, loc, parent=None, bevel=0.03, rot=(0, 0, 0)):
     bm = bmesh.new()
     bmesh.ops.create_cube(bm, size=1.0)
     bmesh.ops.scale(bm, vec=size, verts=bm.verts)
     ob = _finish(name, bm, material, loc, parent, lambda p: False)
+    ob.rotation_euler = rot
     if bevel > 0:
         mod = ob.modifiers.new('bevel', 'BEVEL')
         mod.width = bevel
@@ -88,7 +99,7 @@ def box(name, size, material, loc, parent=None, bevel=0.03):
 
 
 def cone(name, r1, r2, depth, material, loc, parent=None, rot=(0, 0, 0), caps=True):
-    """Blender の Z 軸に沿った円すい台。r1 が下、r2 が上"""
+    """Blender の Z 軸（three.js の上方向）に沿った円すい台。r1 が下、r2 が上"""
     bm = bmesh.new()
     bmesh.ops.create_cone(bm, cap_ends=caps, cap_tris=False, segments=32,
                           radius1=r1, radius2=r2, depth=depth)
@@ -116,84 +127,132 @@ def export(filename):
     )
 
 
+def rnd(i, salt=0.0):
+    """乱数の代わりの、毎回同じになるばらつき（0〜1）"""
+    return (math.sin(i * 12.9898 + salt * 78.233) * 43758.5453) % 1.0
+
+
 # ---------------------------------------------------------------- キャラクター
+# 部品の名前（three.js 側で動かす）:
+#   character > body > head > eyeL / eyeR / sprout
+#                    > armL / armR
+#             > footL / footR
 def build_character():
     reset()
-    skin = mat('skin', (0.97, 0.96, 0.92), rough=0.55)
-    dark = mat('dark', (0.16, 0.15, 0.2), rough=0.3)
-    pink = mat('pink', (0.98, 0.72, 0.72), rough=0.6)
-    foot = mat('foot', (0.72, 0.8, 0.9), rough=0.6)
-    sprout = mat('sprout', (0.55, 0.78, 0.92), rough=0.5)
+    skin = mat('skin', (0.98, 0.97, 0.93), rough=0.5)
+    belly = mat('belly', (1.0, 0.95, 0.84), rough=0.55)
+    dark = mat('eye_dark', (0.13, 0.12, 0.2), rough=0.15)
+    white = mat('eye_white', (1.0, 1.0, 1.0), rough=0.2)
+    pink = mat('pink', (0.99, 0.7, 0.72), rough=0.6)
+    mouth = mat('mouth', (0.75, 0.32, 0.36), rough=0.5)
+    shoe = mat('shoe', (0.45, 0.6, 0.82), rough=0.55)
+    scarf = mat('scarf', (0.36, 0.62, 0.9), rough=0.8)
+    stem = mat('stem', (0.5, 0.74, 0.42), rough=0.6)
+    leaf = mat('leaf_new', (0.62, 0.85, 0.45), rough=0.5)
 
     root = empty('character', (0, 0, 0))
-    # 体（頭と一体の大きな玉）。中心が y=0.62
-    body = empty('body', T(0, 0.62, 0), root)
-    sphere('body_mesh', 0.5, skin, (0, 0, 0), scale=(1.0, 0.95, 1.06), parent=body)
     for side, x in (('L', -0.17), ('R', 0.17)):
-        sphere('eye' + side, 0.062, dark, T(x, 0.1, 0.43), scale=(1, 0.5, 1.45), parent=body)
-        sphere('cheek' + side, 0.07, pink, T(x * 1.75, -0.03, 0.4), scale=(1, 0.35, 0.7), parent=body)
-        sphere('arm' + side, 0.1, skin, T(x * 3.05, -0.08, 0.02), scale=(0.8, 1, 1.15), parent=body)
-    sphere('mouth', 0.032, dark, T(0, -0.06, 0.485), scale=(1.2, 0.5, 0.8), parent=body)
-    # 頭のてっぺんの芽（何も育っていないしるし）
-    top = empty('sprout', T(0, 0.5, 0), body)
-    cone('sprout_stem', 0.018, 0.018, 0.16, sprout, T(0, 0.07, 0), parent=top)
-    sphere('sprout_tip', 0.055, sprout, T(0, 0.19, 0), parent=top)
-    for side, x in (('L', -0.2), ('R', 0.2)):
-        sphere('foot' + side, 0.13, foot, T(x, 0.075, 0.05), scale=(1, 1.35, 0.6), parent=root)
+        foot = empty('foot' + side, T(x, 0.07, 0.05), root)
+        sphere('foot_mesh' + side, 0.125, shoe, (0, 0, 0), scale=(1, 1.4, 0.56), parent=foot)
+        sphere('foot_sole' + side, 0.12, white, T(0, -0.035, 0), scale=(1.02, 1.42, 0.3), parent=foot)
+
+    body = empty('body', T(0, 0.4, 0), root)
+    sphere('torso', 0.3, skin, (0, 0, 0), scale=(1, 0.92, 1.05), parent=body)
+    sphere('belly_patch', 0.2, belly, T(0, -0.03, 0.17), scale=(1, 0.5, 1.05), parent=body)
+    sphere('tail', 0.085, skin, T(0, -0.13, -0.29), parent=body)
+    # マフラー
+    sphere('scarf_ring', 0.27, scarf, T(0, 0.24, 0), scale=(1.1, 1.05, 0.3), parent=body)
+    sphere('scarf_knot', 0.075, scarf, T(0.17, 0.2, 0.2), parent=body)
+    box('scarf_tail', S(0.11, 0.24, 0.04), scarf, T(0.2, 0.07, 0.24), parent=body, bevel=0.015,
+        rot=RZ(-12))
+    # 腕（肩を中心に回して上げ下げする）
+    for side, x in (('L', -0.3), ('R', 0.3)):
+        arm = empty('arm' + side, T(x, 0.1, 0), body)
+        sphere('arm_mesh' + side, 0.085, skin, T(0, -0.09, 0), scale=(0.85, 0.85, 1.55), parent=arm)
+        sphere('hand' + side, 0.078, skin, T(0, -0.21, 0.01), parent=arm)
+
+    # 頭
+    head = empty('head', T(0, 0.46, 0), body)
+    sphere('head_mesh', 0.42, skin, (0, 0, 0), scale=(1.06, 1.0, 0.95), parent=head, seg=48)
+    for side, x in (('L', -1), ('R', 1)):
+        sphere('ear' + side, 0.135, skin, T(x * 0.3, 0.32, -0.02), scale=(1, 0.6, 1), parent=head)
+        sphere('ear_in' + side, 0.08, pink, T(x * 0.3, 0.32, 0.045), scale=(1, 0.4, 1), parent=head)
+        eye = empty('eye' + side, T(x * 0.165, 0.02, 0.36), head)
+        sphere('eye_white' + side, 0.09, white, (0, 0, 0), scale=(1, 0.45, 1.18), parent=eye)
+        sphere('eye_iris' + side, 0.068, dark, T(0, 0, 0.02), scale=(1, 0.45, 1.18), parent=eye)
+        sphere('eye_light' + side, 0.022, white, T(0.022, 0.035, 0.05), parent=eye)
+        sphere('cheek' + side, 0.06, pink, T(x * 0.27, -0.09, 0.3), scale=(1, 0.35, 0.6), parent=head)
+    sphere('mouth', 0.03, mouth, T(0, -0.115, 0.385), scale=(1.5, 0.5, 0.7), parent=head)
+    # 頭のてっぺんの芽（まだ何も育っていないしるし）
+    sprout = empty('sprout', T(0, 0.4, 0), head)
+    cone('sprout_stem', 0.016, 0.012, 0.15, stem, T(0, 0.075, 0), parent=sprout)
+    for side, x in (('L', -1), ('R', 1)):
+        sphere('sprout_leaf' + side, 0.075, leaf, T(x * 0.075, 0.17, 0), scale=(1.25, 0.6, 0.3),
+               parent=sprout, rot=RZ(x * 28))
     export('character.glb')
 
 
-# ---------------------------------------------------------------- 部屋
-def dice(parent):
-    white = mat('dice_white', (0.98, 0.98, 0.96), rough=0.35)
-    pip = mat('dice_pip', (0.85, 0.25, 0.2), rough=0.4)
-    s = 0.3
-    box('dice_body', (s, s, s), white, (0, 0, 0), parent=parent, bevel=0.04)
-    a = 0.08
-    faces = {
-        1: [(0, 0)],
-        2: [(-a, -a), (a, a)],
-        3: [(-a, -a), (0, 0), (a, a)],
-        4: [(-a, -a), (a, a), (-a, a), (a, -a)],
-        5: [(-a, -a), (a, a), (-a, a), (a, -a), (0, 0)],
-        6: [(-a, -a), (a, a), (-a, a), (a, -a), (-a, 0), (a, 0)],
-    }
-    h = s / 2
-    place = {
-        1: lambda u, v: (u, v, h), 6: lambda u, v: (u, v, -h),
-        2: lambda u, v: (h, u, v), 5: lambda u, v: (-h, u, v),
-        3: lambda u, v: (u, h, v), 4: lambda u, v: (u, -h, v),
-    }
-    for n, pts in faces.items():
-        for i, (u, v) in enumerate(pts):
-            sphere(f'pip{n}_{i}', 0.03, pip, place[n](u, v), scale=(1, 1, 1), parent=parent)
+# ---------------------------------------------------------------- 家と広場
+def flower(i, x, z):
+    colors = [(0.98, 0.55, 0.6), (1.0, 0.85, 0.4), (0.75, 0.6, 0.95), (1.0, 1.0, 1.0)]
+    h = 0.22 + rnd(i) * 0.14
+    cone(f'flower_stem{i}', 0.012, 0.012, h, mat('stem', (0.5, 0.74, 0.42)), T(x, h / 2, z))
+    petal = mat(f'petal{i % 4}', colors[i % 4], rough=0.6)
+    for k in range(5):
+        a = k / 5 * math.tau
+        sphere(f'flower_p{i}_{k}', 0.045, petal, T(x + math.cos(a) * 0.05, h, z + math.sin(a) * 0.05),
+               scale=(1, 1, 0.5), seg=12)
+    sphere(f'flower_c{i}', 0.035, mat('flower_center', (1.0, 0.8, 0.3)), T(x, h + 0.015, z), seg=12)
+
+
+def tree(name, x, z, scale=1.0):
+    wood_dark = mat('wood_dark', (0.6, 0.44, 0.3))
+    leaf = mat('leaf', (0.42, 0.68, 0.4), rough=0.9)
+    leaf_light = mat('leaf_light', (0.56, 0.78, 0.45), rough=0.9)
+    t = empty(name, T(x, 0, z), scale=(scale, scale, scale))
+    cone(name + '_trunk', 0.2, 0.13, 1.5, wood_dark, T(0, 0.75, 0), parent=t)
+    sphere(name + '_top0', 0.95, leaf, T(0, 2.1, 0), parent=t)
+    sphere(name + '_top1', 0.65, leaf_light, T(0.55, 1.75, 0.3), parent=t)
+    sphere(name + '_top2', 0.6, leaf_light, T(-0.5, 1.8, 0.2), parent=t)
+    sphere(name + '_top3', 0.5, leaf, T(0.1, 2.75, -0.1), parent=t)
+    return t
 
 
 def build_room():
     reset()
     wood = mat('wood', (0.86, 0.72, 0.54))
     wood_dark = mat('wood_dark', (0.6, 0.44, 0.3))
-    wall = mat('wall', (0.83, 0.9, 0.9), rough=0.9)
-    rug = mat('rug', (0.97, 0.87, 0.7), rough=0.95)
+    plank = mat('plank_line', (0.74, 0.6, 0.44))
+    wall = mat('wall', (0.86, 0.92, 0.9), rough=0.9)
+    trim = mat('trim', (0.98, 0.97, 0.94), rough=0.8)
+    rug = mat('rug', (0.98, 0.88, 0.72), rough=0.95)
+    rug_edge = mat('rug_edge', (0.9, 0.6, 0.48), rough=0.95)
     board = mat('board', (0.18, 0.29, 0.24), rough=0.9)
     white = mat('white', (0.97, 0.97, 0.95), rough=0.8)
     blue = mat('blue', (0.6, 0.76, 0.9), rough=0.9)
-    brass = mat('brass', (0.92, 0.72, 0.3), rough=0.35, metal=0.6)
     wicker = mat('wicker', (0.8, 0.62, 0.38), rough=0.9)
     books = [mat(f'book{i}', c) for i, c in enumerate([
         (0.9, 0.5, 0.42), (0.95, 0.78, 0.4), (0.55, 0.75, 0.6),
         (0.5, 0.68, 0.88), (0.75, 0.6, 0.85), (0.95, 0.65, 0.75)])]
 
-    W, D, H = 5.6, 6.4, 4.2  # 部屋の幅、奥行き、壁の高さ
+    W, D, H = 5.6, 6.4, 4.2  # 家の幅、奥行き、壁の高さ
 
+    # ---- 家 ----
     box('floor', S(W, 0.2, D), wood, T(0, -0.1, 0), bevel=0)
-    cone('rug', 1.35, 1.35, 0.03, rug, T(0, 0.015, 0.5))
+    for i in range(1, 8):
+        box(f'plank{i}', S(W, 0.006, 0.025), plank, T(0, 0.003, -D / 2 + i * 0.8), bevel=0)
+    cone('rug_edge', 1.5, 1.5, 0.02, rug_edge, T(0, 0.012, 0.5))
+    cone('rug', 1.32, 1.32, 0.035, rug, T(0, 0.02, 0.5))
     box('wall_back', S(W, H, 0.2), wall, T(0, H / 2, -D / 2 - 0.1), bevel=0)
     # 左の壁は手前を空けて、外の広場への出入り口にする
     box('wall_left', S(0.2, H, 5.2), wall, T(-W / 2 - 0.1, H / 2, -0.7), bevel=0)
     box('wall_right', S(0.2, H, D + 0.2), wall, T(W / 2 + 0.1, H / 2, -0.1), bevel=0)
+    box('base_back', S(W, 0.14, 0.05), trim, T(0, 0.07, -D / 2 + 0.025), bevel=0.01)
+    box('base_right', S(0.05, 0.14, D), trim, T(W / 2 - 0.025, 0.07, 0), bevel=0.01)
+    box('base_left', S(0.05, 0.14, 5.1), trim, T(-W / 2 + 0.025, 0.07, -0.65), bevel=0.01)
+    box('door_post', S(0.24, H, 0.24), trim, T(-W / 2 - 0.1, H / 2, 1.9), bevel=0.02)
 
-    # 棚（集計表）。奥の壁の中央
+    # 棚（かざり。おぼえたことのしるし）
     shelf = empty('shelf', T(0, 0, -2.85))
     sw, sh, sd = 2.6, 1.45, 0.5
     box('shelf_back', S(sw, sh, 0.06), wood_dark, T(0, sh / 2, -sd / 2 + 0.03), parent=shelf, bevel=0.01)
@@ -213,18 +272,12 @@ def build_room():
             x += w + 0.03
             n += 1
 
-    # 黒板（今引いている行を出す）。面の大きさは board_face の scale で渡す
+    # 黒板（育ち具合を書く）。面の大きさは board_face の scale で渡す
     bw, bh = 5.0, 2.3
     box('board', S(bw + 0.16, bh + 0.16, 0.08), wood_dark, T(0, 2.85, -D / 2 + 0.04), bevel=0.02)
     box('board_slate', S(bw, bh, 0.04), board, T(0, 2.85, -D / 2 + 0.08), bevel=0)
+    box('board_tray', S(bw * 0.6, 0.05, 0.12), wood_dark, T(0, 2.85 - bh / 2 - 0.1, -D / 2 + 0.12), bevel=0.01)
     empty('board_face', T(0, 2.85, -D / 2 + 0.11), scale=S(bw, bh, 1))
-
-    # サイコロ台
-    table = empty('table', T(-1.7, 0, 1.7))
-    cone('table_top', 0.55, 0.55, 0.08, wood, T(0, 0.6, 0), parent=table)
-    cone('table_leg', 0.2, 0.08, 0.56, wood_dark, T(0, 0.28, 0), parent=table)
-    d = empty('dice', T(-1.7, 0.79, 1.7))
-    dice(d)
 
     # かご（短期記憶）
     basket = empty('basket', T(-2.05, 0, -0.5))
@@ -234,43 +287,57 @@ def build_room():
     box('basket_b', S(kw, kh, 0.06), wicker, T(0, kh / 2, -kd / 2), parent=basket, bevel=0.02)
     box('basket_l', S(0.06, kh, kd), wicker, T(-kw / 2, kh / 2, 0), parent=basket, bevel=0.02)
     box('basket_r', S(0.06, kh, kd), wicker, T(kw / 2, kh / 2, 0), parent=basket, bevel=0.02)
-
-    # ラッパ（口）。右の壁から部屋に向かって開く
-    horn = empty('horn', T(W / 2 - 0.45, 1.45, -0.5))
-    cone('horn_bell', 0.5, 0.07, 0.7, brass, (0, 0, 0), parent=horn,
-         rot=(0, math.radians(90), 0), caps=False)
-    cone('horn_pipe', 0.07, 0.07, 0.3, brass, T(0.4, 0, 0), parent=horn,
-         rot=(0, math.radians(90), 0))
+    box('basket_band', S(kw + 0.02, 0.07, kd + 0.02), wood_dark, T(0, kh - 0.06, 0), parent=basket, bevel=0.02)
 
     # ベッド
     bed = empty('bed', T(1.75, 0, 1.9))
     box('bed_base', S(1.3, 0.3, 2.1), wood_dark, T(0, 0.15, 0), parent=bed)
-    box('bed_head', S(1.3, 0.8, 0.1), wood_dark, T(0, 0.4, -1.05), parent=bed)
+    box('bed_head', S(1.3, 0.85, 0.1), wood_dark, T(0, 0.42, -1.05), parent=bed)
+    box('bed_foot', S(1.3, 0.5, 0.1), wood_dark, T(0, 0.25, 1.05), parent=bed)
     box('bed_mattress', S(1.2, 0.2, 2.0), white, T(0, 0.4, 0), parent=bed, bevel=0.05)
     box('bed_pillow', S(0.8, 0.14, 0.42), white, T(0, 0.55, -0.7), parent=bed, bevel=0.06)
     box('bed_blanket', S(1.24, 0.1, 1.15), blue, T(0, 0.5, 0.4), parent=bed, bevel=0.04)
+    box('bed_blanket_fold', S(1.24, 0.12, 0.2), white, T(0, 0.51, -0.2), parent=bed, bevel=0.04)
 
-    # 立ち位置などの目印
-    empty('at_home', T(0, 0, 0.5))
-    empty('at_shelf', T(0, 0, -1.9))
-    empty('at_table', T(-0.85, 0, 1.6))
-    empty('at_basket', T(-1.2, 0, -0.5))
-    empty('at_horn', T(1.55, 0, -0.5))
-    empty('at_bed', T(0.75, 0, 1.9))
-    empty('bed_top', T(1.75, 1.02, 2.55))
-    empty('basket_top', T(-2.05, 0.7, -0.5))
-    empty('horn_mouth', T(W / 2 - 0.85, 1.45, -0.5))
-    empty('ear', T(-2.05, 3.3, -0.5))
+    # 観葉植物、窓、ランプ、絵（かざり）
+    plant = empty('plant', T(W / 2 - 0.55, 0, -2.6))
+    cone('plant_pot', 0.2, 0.28, 0.4, mat('pot', (0.85, 0.5, 0.38)), T(0, 0.2, 0), parent=plant)
+    green = mat('plant_green', (0.4, 0.68, 0.42), rough=0.8)
+    for i, (x, y, z, r) in enumerate(((0, 0.75, 0, 0.34), (-0.18, 0.55, 0.1, 0.24), (0.2, 0.58, -0.05, 0.24))):
+        sphere(f'plant_leaf{i}', r, green, T(x, y, z), parent=plant)
+    window = empty('window', T(W / 2 - 0.02, 2.2, 0.2))
+    box('window_frame', S(0.08, 1.6, 2.0), trim, (0, 0, 0), parent=window, bevel=0.02)
+    box('window_glass', S(0.1, 1.4, 1.8), mat('glass', (0.7, 0.88, 0.98), rough=0.15, glow=0.4), (0, 0, 0),
+        parent=window, bevel=0)
+    box('window_bar_v', S(0.12, 1.4, 0.06), trim, (0, 0, 0), parent=window, bevel=0)
+    box('window_bar_h', S(0.12, 0.06, 1.8), trim, (0, 0, 0), parent=window, bevel=0)
+    lamp = empty('lamp', T(-2.35, 0, -2.7))
+    cone('lamp_base', 0.2, 0.16, 0.06, wood_dark, T(0, 0.03, 0), parent=lamp)
+    cone('lamp_pole', 0.025, 0.025, 1.6, wood_dark, T(0, 0.85, 0), parent=lamp)
+    cone('lamp_shade', 0.32, 0.17, 0.36, mat('lamp_shade', (1.0, 0.9, 0.65), rough=0.6, glow=1.2),
+         T(0, 1.75, 0), parent=lamp, caps=False)
+    empty('lamp_light', T(-2.35, 1.6, -2.7))
+    box('picture_frame', S(0.05, 0.8, 1.0), wood_dark, T(-W / 2 + 0.03, 2.3, -1.4), bevel=0.015)
+    box('picture', S(0.06, 0.64, 0.84), mat('picture', (0.98, 0.83, 0.6), rough=0.9),
+        T(-W / 2 + 0.035, 2.3, -1.4), bevel=0)
+    sphere('picture_sun', 0.13, mat('picture_sun', (0.95, 0.5, 0.35)), T(-W / 2 + 0.06, 2.4, -1.25),
+           scale=(0.15, 1, 1))
 
     # ---- 外の広場（盗み聞きの場所）。家の左どなり ----
     grass = mat('grass', (0.66, 0.83, 0.52), rough=0.95)
+    grass_dark = mat('grass_dark', (0.58, 0.78, 0.47), rough=0.95)
     leaf = mat('leaf', (0.42, 0.68, 0.4), rough=0.9)
     leaf_light = mat('leaf_light', (0.56, 0.78, 0.45), rough=0.9)
-    stone = mat('stone', (0.86, 0.84, 0.78), rough=0.9)
+    stone = mat('stone', (0.87, 0.85, 0.79), rough=0.9)
+    rock = mat('rock', (0.68, 0.68, 0.66), rough=0.9)
     PW = 6.6  # 広場の幅
     px = -W / 2 - 0.2 - PW / 2  # 広場の中心の x
     box('plaza', S(PW, 0.2, D), grass, T(px, -0.1, 0), bevel=0)
+    for i in range(9):  # 草の色むら
+        sphere(f'grass_patch{i}', 0.45 + rnd(i) * 0.35, grass_dark,
+               T(px - 2.6 + rnd(i, 1) * 5.2, 0.0, -2.4 + rnd(i, 2) * 4.8), scale=(1, 1, 0.02), seg=16)
     cone('plaza_circle', 1.7, 1.7, 0.03, stone, T(px - 0.6, 0.015, -0.1))
+    cone('plaza_circle_in', 1.2, 1.2, 0.034, mat('stone_in', (0.92, 0.9, 0.85), rough=0.9), T(px - 0.6, 0.016, -0.1))
     for i, (x, z) in enumerate(((-3.35, 2.6), (-3.95, 2.45), (-4.5, 2.2))):
         cone(f'step{i}', 0.24, 0.24, 0.03, stone, T(x, 0.015, z))
     # 茂み（隠れる場所）
@@ -278,18 +345,50 @@ def build_room():
     for i, (x, y, z, r) in enumerate(((0, 0.38, 0, 0.5), (-0.42, 0.3, 0.12, 0.38),
                                       (0.4, 0.28, -0.1, 0.36), (0.05, 0.62, -0.05, 0.3))):
         sphere(f'bush{i}', r, leaf if i % 2 == 0 else leaf_light, T(x, y, z), parent=bush)
-    # 木とベンチ
-    tree = empty('tree', T(px - 2.3, 0, -2.2))
-    cone('tree_trunk', 0.2, 0.14, 1.5, wood_dark, T(0, 0.75, 0), parent=tree)
-    sphere('tree_top0', 0.95, leaf, T(0, 2.1, 0), parent=tree)
-    sphere('tree_top1', 0.65, leaf_light, T(0.55, 1.75, 0.3), parent=tree)
-    sphere('tree_top2', 0.6, leaf_light, T(-0.5, 1.8, 0.2), parent=tree)
-    bench = empty('bench', T(px + 0.9, 0, -2.6))
+    # 木、ベンチ、柵、街灯、花、石
+    tree('tree', px - 2.3, -2.2)
+    tree('tree_small', px + 2.6, -2.5, scale=0.7)
+    bench = empty('bench', T(px + 0.6, 0, -2.5))
     box('bench_seat', S(1.6, 0.08, 0.45), wood, T(0, 0.45, 0), parent=bench, bevel=0.02)
     box('bench_back', S(1.6, 0.4, 0.07), wood, T(0, 0.85, -0.2), parent=bench, bevel=0.02)
     for i, x in enumerate((-0.65, 0.65)):
         box(f'bench_leg{i}', S(0.08, 0.45, 0.4), wood_dark, T(x, 0.225, 0), parent=bench, bevel=0.01)
+    x = px - PW / 2 + 0.2
+    i = 0
+    while x < px + PW / 2:
+        box(f'fence_post{i}', S(0.1, 0.75, 0.1), trim, T(x, 0.375, -D / 2 + 0.12), bevel=0.02)
+        x += 0.75
+        i += 1
+    for i, y in enumerate((0.3, 0.58)):
+        box(f'fence_rail{i}', S(PW - 0.3, 0.07, 0.05), trim, T(px, y, -D / 2 + 0.12), bevel=0.01)
+    post = empty('street_lamp', T(px - 0.9, 0, -2.6))
+    cone('street_lamp_pole', 0.05, 0.04, 2.2, mat('iron', (0.3, 0.33, 0.38), rough=0.5), T(0, 1.1, 0), parent=post)
+    sphere('street_lamp_glow', 0.17, mat('street_glow', (1.0, 0.93, 0.7), rough=0.4, glow=1.5),
+           T(0, 2.3, 0), parent=post)
+    spots = [(px - 2.6, 2.6), (px - 1.9, 2.2), (px + 1.2, 2.7), (px + 2.4, 0.6), (px - 2.8, -0.6),
+             (px + 2.5, -1.4), (px - 0.4, 2.5), (px + 0.3, -1.9), (px - 1.6, -2.4), (px + 1.8, 2.1),
+             (px - 2.2, 0.9), (px + 2.8, 2.6)]
+    for i, (fx, fz) in enumerate(spots):
+        flower(i, fx, fz)
+    for i, (rx, rz, r) in enumerate(((px + 2.7, 1.5, 0.22), (px - 2.9, -1.5, 0.3), (px + 1.4, -2.6, 0.18))):
+        sphere(f'rock{i}', r, rock, T(rx, r * 0.45, rz), scale=(1.2, 1, 0.7), seg=16)
+    # 遠くの丘と雲
+    hill = mat('hill', (0.6, 0.8, 0.55), rough=1.0)
+    sphere('hill0', 5.0, hill, T(px - 2.5, -2.6, -8.5), scale=(1.5, 1, 1))
+    sphere('hill1', 4.0, mat('hill_far', (0.68, 0.85, 0.66), rough=1.0), T(px + 4.5, -1.9, -10), scale=(1.8, 1, 1))
+    cloud = mat('cloud', (1.0, 1.0, 1.0), rough=1.0, glow=0.25)
+    for c, (cx, cy, cz) in enumerate(((px - 3, 4.3, -9), (px + 3.5, 5.2, -11), (3.5, 5.6, -10))):
+        for i, (x, r) in enumerate(((0, 0.8), (-0.8, 0.55), (0.85, 0.6), (0.3, 0.6))):
+            sphere(f'cloud{c}_{i}', r, cloud, T(cx + x, cy + (0.25 if i == 3 else 0), cz),
+                   scale=(1.2, 1, 0.75), seg=16)
 
+    # ---- 立ち位置などの目印 ----
+    empty('at_home', T(0, 0, 0.5))
+    empty('at_basket', T(-1.2, 0, -0.5))
+    empty('at_bed', T(0.75, 0, 1.9))
+    empty('bed_top', T(1.75, 1.0, 2.6))
+    empty('basket_top', T(-2.05, 0.7, -0.5))
+    empty('ear', T(-2.05, 3.3, -0.5))
     empty('at_door_in', T(-2.1, 0, 2.65))
     empty('at_door_out', T(-3.6, 0, 2.6))
     empty('at_hide', T(-4.35, 0, 1.7))
@@ -302,14 +401,22 @@ def build_npc():
     reset()
     skin = mat('npc_skin', (0.98, 0.86, 0.74), rough=0.6)
     cloth = mat('npc_cloth', (0.9, 0.9, 0.9), rough=0.7)  # 色は three.js 側で人ごとに変える
-    dark = mat('dark', (0.16, 0.15, 0.2), rough=0.3)
+    dark = mat('eye_dark', (0.13, 0.12, 0.2), rough=0.15)
+    shoe = mat('npc_shoe', (0.35, 0.3, 0.3), rough=0.6)
+    pink = mat('pink', (0.99, 0.7, 0.72), rough=0.6)
     root = empty('npc', (0, 0, 0))
-    sphere('npc_body', 0.36, cloth, T(0, 0.5, 0), scale=(1, 0.9, 1.4), parent=root)
-    head = empty('npc_head', T(0, 1.22, 0), root)
+    for side, x in (('L', -0.14), ('R', 0.14)):
+        sphere('npc_foot' + side, 0.11, shoe, T(x, 0.06, 0.04), scale=(1, 1.4, 0.55), parent=root)
+        sphere('npc_arm' + side, 0.085, cloth, T(x * 2.6, 0.62, 0), scale=(0.8, 0.8, 1.9), parent=root)
+        sphere('npc_hand' + side, 0.07, skin, T(x * 2.7, 0.44, 0.02), parent=root)
+    sphere('npc_body', 0.34, cloth, T(0, 0.55, 0), scale=(1, 0.88, 1.45), parent=root)
+    head = empty('npc_head', T(0, 1.24, 0), root)
     sphere('npc_head_mesh', 0.3, skin, (0, 0, 0), parent=head)
-    sphere('npc_hat', 0.31, cloth, T(0, 0.08, -0.02), scale=(1.02, 1.02, 0.8), parent=head)
+    sphere('npc_hat', 0.31, cloth, T(0, 0.09, -0.02), scale=(1.03, 1.03, 0.78), parent=head)
+    cone('npc_hat_brim', 0.36, 0.36, 0.03, cloth, T(0, 0.1, 0.03), parent=head)
     for side, x in (('L', -0.11), ('R', 0.11)):
-        sphere('npc_eye' + side, 0.04, dark, T(x, -0.03, 0.27), scale=(1, 0.5, 1.3), parent=head)
+        sphere('npc_eye' + side, 0.04, dark, T(x, -0.04, 0.27), scale=(1, 0.5, 1.3), parent=head)
+        sphere('npc_cheek' + side, 0.045, pink, T(x * 1.8, -0.1, 0.23), scale=(1, 0.4, 0.6), parent=head)
     export('npc.glb')
 
 

@@ -73,8 +73,8 @@ export function createModel({ random = Math.random } = {}) {
     const trace = [];
     while (shortMemory.length > 0) {
       const text = shortMemory.shift();
-      trace.push({ type: 'replay', text });
       const tokens = [BOS, ...chips.tokenizer.tokenize(text), EOS];
+      trace.push({ type: 'replay', text, tokens });
       chips.learner.learn(store, [tokens], chips.context, trace);
       trace.push({ type: 'forget', text });
     }

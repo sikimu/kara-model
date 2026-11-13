@@ -100,12 +100,17 @@ button:disabled { cursor: default; }
   inset: 0;
   display: block;
 }
+.sky { position: absolute; inset: 0; }
+.sky-day { background: linear-gradient(#aeddf5, #dff2fa 55%, #f6f3e4); }
+.sky-night { background: linear-gradient(#10152f, #2a3162 70%, #3b3f6e); opacity: 0; }
+.mind-view { z-index: 2; pointer-events: none; }
+button:disabled { opacity: 0.55; }
 .caption {
   position: absolute;
   top: 10px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 1;
+  z-index: 3;
   width: max-content;
   max-width: 92%;
   padding: 6px 18px;

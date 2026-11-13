@@ -1,13 +1,13 @@
-// 3D の部屋（空モデルの頭の中）。three.js の場面、読み込み、時間で動かす仕組み、札と黒板。
+// 3D の世界（家と外の広場）。three.js の場面、読み込み、時間で動かす仕組み、札と黒板。
 
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-const DAY = { sky: new THREE.Color(0xdff1f7), hemi: 2.2, sun: 2.0 };
-const NIGHT = { sky: new THREE.Color(0x1d2440), hemi: 0.55, sun: 0.25 };
-const FONT = '"Hiragino Sans", "Yu Gothic UI", "Noto Sans JP", sans-serif';
+const DAY = { hemi: 1.9, sun: 2.4, lamp: 0 };
+const NIGHT = { hemi: 0.45, sun: 0.2, lamp: 14 };
+export const FONT = '"Yu Gothic UI", "Hiragino Sans", "Noto Sans JP", sans-serif';
 
-function roundRect(g, x, y, w, h, r) {
+export function roundRect(g, x, y, w, h, r) {
   g.beginPath();
   g.moveTo(x + r, y);
   g.arcTo(x + w, y, x + w, y + h, r);
@@ -49,7 +49,7 @@ export function makeLabel(text, { size = 0.36, color = '#333', bg = '#fff', bord
   return sprite;
 }
 
-// 黒板。state を書き換えて draw() を呼ぶ
+// 家の黒板。育ち具合を書く。write(title, lines) で書き換える
 function createBoard(face) {
   const CW = 1024;
   const CH = Math.round(CW * face.scale.y / face.scale.x);
@@ -65,128 +65,71 @@ function createBoard(face) {
   );
   mesh.position.copy(face.position);
 
-  // state: { title, message, rows: [{ token, count, p, fill, picked }], more,
-  //          strip: [{ token, p, picked }], needle, diceText, count: { token, num, changed } }
-  const board = { mesh, state: {}, draw };
-
-  function draw() {
-    const s = board.state;
+  // lines: [{ label, value }]
+  function write(title, lines) {
     g.fillStyle = '#2c4a3c';
     g.fillRect(0, 0, CW, CH);
     g.textBaseline = 'middle';
-
-    if (s.title) {
-      g.font = `bold 50px ${FONT}`;
-      g.fillStyle = '#ffe9a8';
+    g.font = `bold 58px ${FONT}`;
+    g.fillStyle = '#ffe9a8';
+    g.textAlign = 'left';
+    g.fillText(title, 44, 62);
+    g.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+    g.lineWidth = 3;
+    g.beginPath();
+    g.moveTo(44, 108);
+    g.lineTo(CW - 44, 108);
+    g.stroke();
+    lines.forEach((line, i) => {
+      const y = 170 + i * 76;
+      g.font = `52px ${FONT}`;
+      g.fillStyle = '#e8efe9';
       g.textAlign = 'left';
-      g.fillText(s.title, 32, 44);
-    }
-    if (s.message) {
+      g.fillText(line.label, 60, y);
       g.font = `bold 60px ${FONT}`;
-      g.fillStyle = '#e8efe9';
-      g.textAlign = 'center';
-      g.fillText(s.message, CW / 2, CH / 2 + 20);
-    }
-    if (s.rows) {
-      s.rows.forEach((r, i) => {
-        const y = 108 + i * 60;
-        if (r.picked) {
-          g.fillStyle = 'rgba(246, 197, 107, 0.35)';
-          roundRect(g, 20, y - 29, CW - 40, 58, 10);
-          g.fill();
-        }
-        g.font = `bold 50px ${FONT}`;
-        g.fillStyle = '#fff';
-        g.textAlign = 'center';
-        g.fillText(r.token, 64, y + 2);
-        g.fillStyle = 'rgba(255, 255, 255, 0.18)';
-        roundRect(g, 110, y - 16, 560, 32, 16);
-        g.fill();
-        const w = 560 * r.p * (r.fill ?? 1);
-        if (w > 1) {
-          g.fillStyle = r.picked ? '#f6c56b' : '#8fc7ea';
-          roundRect(g, 110, y - 16, Math.max(w, 32), 32, 16);
-          g.fill();
-        }
-        g.font = `44px ${FONT}`;
-        g.fillStyle = '#e8efe9';
-        g.textAlign = 'right';
-        g.fillText(`${r.count}回 ${Math.round(r.p * 100)}%`, CW - 32, y + 2);
-      });
-      if (s.more) {
-        g.font = `36px ${FONT}`;
-        g.fillStyle = '#b9cdbf';
-        g.textAlign = 'right';
-        g.fillText(s.more, CW - 32, 44);
-      }
-    }
-    if (s.strip) {
-      const x0 = 32;
-      const w0 = CW - 64;
-      const y = CH - 122;
-      let x = x0;
-      for (const seg of s.strip) {
-        const w = w0 * seg.p;
-        g.fillStyle = seg.picked ? '#f6c56b' : '#f4f1ea';
-        g.fillRect(x, y, w, 56);
-        g.strokeStyle = '#2c4a3c';
-        g.lineWidth = 2;
-        g.strokeRect(x, y, w, 56);
-        if (w > 48) {
-          g.font = `bold 42px ${FONT}`;
-          g.fillStyle = '#333';
-          g.textAlign = 'center';
-          g.fillText(seg.token, x + w / 2, y + 31);
-        }
-        x += w;
-      }
-      if (s.needle != null) {
-        const nx = x0 + w0 * s.needle;
-        g.fillStyle = '#ff5a4d';
-        g.fillRect(nx - 4, y - 12, 8, 80);
-      }
-      if (s.diceText) {
-        g.font = `44px ${FONT}`;
-        g.fillStyle = '#ffe9a8';
-        g.textAlign = 'left';
-        g.fillText(s.diceText, x0, CH - 32);
-      }
-    }
-    if (s.count) {
-      g.font = `bold 110px ${FONT}`;
-      g.textAlign = 'center';
       g.fillStyle = '#fff';
-      g.fillText(s.count.token, CW / 2 - 190, CH / 2 + 30);
-      if (s.count.changed) {
-        g.fillStyle = 'rgba(246, 197, 107, 0.4)';
-        roundRect(g, CW / 2 - 60, CH / 2 - 45, 200, 150, 20);
-        g.fill();
-      }
-      g.fillStyle = s.count.changed ? '#f6c56b' : '#fff';
-      g.fillText(String(s.count.num), CW / 2 + 40, CH / 2 + 30);
-      g.font = `48px ${FONT}`;
-      g.fillStyle = '#e8efe9';
-      g.fillText('回', CW / 2 + 190, CH / 2 + 50);
-    }
+      g.textAlign = 'right';
+      g.fillText(line.value, CW - 60, y);
+    });
     map.needsUpdate = true;
   }
 
-  draw();
-  return board;
+  write('', []);
+  return { mesh, write };
 }
 
 export async function createRoom(root) {
-  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  // 空（昼と夜の 2 枚を重ねて、夜のほうの濃さを変える）
+  const skyDay = document.createElement('div');
+  skyDay.className = 'sky sky-day';
+  const skyNight = document.createElement('div');
+  skyNight.className = 'sky sky-night';
+  root.append(skyDay, skyNight);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setClearColor(0x000000, 0);
+  renderer.shadowMap.enabled = true;
   root.append(renderer.domElement);
 
   const scene = new THREE.Scene();
-  scene.background = DAY.sky.clone();
   const camera = new THREE.PerspectiveCamera(36, 1, 0.1, 100);
   const hemi = new THREE.HemisphereLight(0xffffff, 0xc9b99a, DAY.hemi);
-  const sun = new THREE.DirectionalLight(0xffffff, DAY.sun);
-  sun.position.set(-3, 8, 6);
-  scene.add(hemi, sun);
+  const sun = new THREE.DirectionalLight(0xfff4e0, DAY.sun);
+  sun.position.set(-7, 11, 8);
+  sun.target.position.set(-3, 0, 0);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.camera.left = -9;
+  sun.shadow.camera.right = 9;
+  sun.shadow.camera.top = 8;
+  sun.shadow.camera.bottom = -8;
+  sun.shadow.camera.near = 1;
+  sun.shadow.camera.far = 40;
+  sun.shadow.bias = -0.0004;
+  sun.shadow.normalBias = 0.03;
+  const lamp = new THREE.PointLight(0xffc880, 0, 9, 1.6);
+  scene.add(hemi, sun, sun.target, lamp);
 
   const loader = new GLTFLoader();
   const [roomGltf, charGltf, npcGltf] = await Promise.all([
@@ -194,11 +137,20 @@ export async function createRoom(root) {
     loader.loadAsync('./assets/character.glb'),
     loader.loadAsync('./assets/npc.glb'),
   ]);
+  for (const gltf of [roomGltf, charGltf, npcGltf]) {
+    gltf.scene.traverse((o) => {
+      if (!o.isMesh) return;
+      const far = /^(hill|cloud)/.test(o.name);
+      o.castShadow = !far;
+      o.receiveShadow = !far;
+    });
+  }
   scene.add(roomGltf.scene, charGltf.scene);
   scene.updateMatrixWorld(true);
 
   // 名前の付いた目印の位置
   const at = (name) => roomGltf.scene.getObjectByName(name).getWorldPosition(new THREE.Vector3());
+  lamp.position.copy(at('lamp_light'));
 
   const board = createBoard(roomGltf.scene.getObjectByName('board_face'));
   scene.add(board.mesh);
@@ -240,6 +192,12 @@ export async function createRoom(root) {
     });
   }
 
+  // 3D の位置が画面のどこに見えるか（root の左上からのピクセル）
+  function screenPos(v) {
+    const p = v.clone().project(camera);
+    return { x: (p.x + 1) / 2 * root.clientWidth, y: (1 - p.y) / 2 * root.clientHeight };
+  }
+
   // 時間で動かす仕組み。tween(ms, fn) は fn(0..1) を毎フレーム呼び、終わると解決する
   const tweens = new Set();
   const frameHandlers = [];
@@ -270,9 +228,10 @@ export async function createRoom(root) {
   let nightNow = 0;
   function setNight(k) {
     nightNow = k;
-    scene.background.lerpColors(DAY.sky, NIGHT.sky, k);
+    skyNight.style.opacity = String(k);
     hemi.intensity = THREE.MathUtils.lerp(DAY.hemi, NIGHT.hemi, k);
     sun.intensity = THREE.MathUtils.lerp(DAY.sun, NIGHT.sun, k);
+    lamp.intensity = THREE.MathUtils.lerp(DAY.lamp, NIGHT.lamp, k);
   }
   function fadeNight(to, ms) {
     const from = nightNow;
@@ -283,7 +242,6 @@ export async function createRoom(root) {
     scene,
     character: charGltf.scene,
     npc: npcGltf.scene, // 広場で話す人のひな形（場面には足していない）
-    dice: roomGltf.scene.getObjectByName('dice'),
     board,
     at,
     tween,
@@ -291,6 +249,7 @@ export async function createRoom(root) {
     onFrame: (fn) => frameHandlers.push(fn),
     setNight,
     setShot,
+    screenPos,
     fadeNight,
   };
 }

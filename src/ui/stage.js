@@ -1,25 +1,20 @@
-// 演出。モデルが返したトレースを、3D の部屋でキャラクターに演じさせる。
+// 演出。モデルが返したトレースを見せる。
+// 家と広場（3D）ではキャラクターの暮らしを、推論と学習は「頭の中の画面」に切り替えて見せる。
 
 import * as THREE from 'three';
 import { createRoom, makeLabel } from './room.js';
 import { createActor } from './actor.js';
+import { createMindView } from './mindview.js';
 import { sound } from './sound.js';
-import { MEMORY_CAPACITY } from '../model/model.js';
+import { MEMORY_CAPACITY, EMPTY_REPLY } from '../model/model.js';
 
 const END_TEXT = {
-  eos: '■ が出たので、おしまい',
-  empty: '棚がからっぽ。何も言えない',
-  limit: '30 文字になったので、打ち切り',
+  eos: '返事ができた',
+  empty: 'まだ何もおぼえていないので、何も言えない',
+  limit: '長くなりすぎたので、途中でやめた',
 };
-const BOARD_ROWS = 4;  // 黒板に出す候補の数
-const ROW_LENGTH = 14; // 手前に並べる文字の 1 行の数
-const HEARD_Y = 0.3;   // 聞いた言葉の行の高さ
-const OUT_Y = -0.2;    // 出した言葉の行の高さ
 const NPC_COLORS = ['#e58a6f', '#6fa8dc', '#8cc084', '#c59ad6'];
 const FRONT = 0;
-const BACK = Math.PI;
-const LEFT = -Math.PI / 2;
-const RIGHT = Math.PI / 2;
 
 const ease = (k) => k * k * (3 - 2 * k);
 
@@ -31,26 +26,23 @@ function shorten(text, max) {
   return chars.length > max ? `${chars.slice(0, max - 1).join('')}…` : text;
 }
 
-export async function createStage(root) {
+export async function createStage(root, model) {
   root.classList.add('stage3d');
   const caption = document.createElement('div');
   caption.className = 'caption';
-  root.append(caption);
 
   const room = await createRoom(root);
   const actor = createActor(room);
-  const { scene, board, dice, tween, wait } = room;
+  const mind = createMindView(root, room, model);
+  root.append(caption);
+  const { scene, tween, wait } = room;
 
   const P = {
     home: room.at('at_home'),
-    shelf: room.at('at_shelf'),
-    table: room.at('at_table'),
     basket: room.at('at_basket'),
-    horn: room.at('at_horn'),
     bed: room.at('at_bed'),
     bedTop: room.at('bed_top'),
     basketTop: room.at('basket_top'),
-    hornMouth: room.at('horn_mouth'),
     ear: room.at('ear'),
     doorIn: room.at('at_door_in'),
     doorOut: room.at('at_door_out'),
@@ -58,15 +50,13 @@ export async function createStage(root) {
     plaza: room.at('plaza_center'),
   };
   actor.root.position.copy(P.home);
-  const diceHome = dice.position.clone();
 
-  let heard = null;   // 聞いた言葉の行 { text, sprites }
-  let out = [];       // 出した言葉の行（札の配列）
-  let mem = [];       // 短期記憶の札 [{ text, sprite, carried }]
+  let heardLabel = null; // 話しかけられた言葉の札
+  let saidLabel = null;  // 返事の札
+  let mem = [];          // 短期記憶の札 [{ text, sprite }]
   let memCount = null;
-  let cands = [];     // 今の候補（抽選の帯の並び）
-  let sleeping = false;
-  let incoming = null; // 広場で出た吹き出し（次の hear でかごへ飛ぶ）
+  let incoming = null;   // 広場で出た吹き出し（次の hear でかごへ飛ぶ）
+  let exploring = false;
 
   // 広場で話す人（最大 4 人）。ふだんは隠しておく
   const npcs = NPC_COLORS.map((color) => {
@@ -89,7 +79,6 @@ export async function createStage(root) {
     return sprite;
   }
   function remove(sprite) {
-    if (actor.held === sprite) actor.held = null;
     scene.remove(sprite);
     sprite.material.map.dispose();
     sprite.material.dispose();
@@ -116,21 +105,24 @@ export async function createStage(root) {
     });
     remove(sprite);
   }
-  const rowPos = (i, y) => new THREE.Vector3(
-    -2.35 + (i % ROW_LENGTH) * 0.36,
-    y - Math.floor(i / ROW_LENGTH) * 0.38,
-    3.7,
-  );
+  const above = (pos, dx, dy, dz) => new THREE.Vector3(pos.x + dx, pos.y + dy, pos.z + dz);
 
-  function setBoard(state) {
-    board.state = state;
-    board.draw();
-  }
   function clearLines() {
-    if (heard) heard.sprites.forEach(remove);
-    heard = null;
-    out.forEach(remove);
-    out = [];
+    if (heardLabel) remove(heardLabel);
+    if (saidLabel) remove(saidLabel);
+    heardLabel = null;
+    saidLabel = null;
+  }
+
+  // 家の黒板に育ち具合を書く
+  function updateBoard() {
+    const s = mind.stats();
+    room.board.write('そだちぐあい', [
+      { label: 'おぼえた文字', value: `${s.kinds} 種類` },
+      { label: '文字のつながり', value: `${s.links} 本` },
+      { label: '数えた回数', value: `${s.total} 回` },
+      { label: '眠った回数', value: `${s.sleeps} 回` },
+    ]);
   }
 
   // ---- 短期記憶（かごの上の札） ----
@@ -146,162 +138,35 @@ export async function createStage(root) {
     put(memCount, new THREE.Vector3(P.basketTop.x, 0.28, P.basketTop.z + 0.5));
   }
   function restack(ms) {
-    const stacked = mem.filter((m) => !m.carried);
-    return Promise.all(stacked.map((m, i) => fly(m.sprite, memSlot(i), ms, 0)));
+    return Promise.all(mem.map((m, i) => fly(m.sprite, memSlot(i), ms, 0)));
   }
+  // 演出なしで、短期記憶・地図・黒板を今のモデルに合わせる
   function syncMemory(list) {
     clearLines();
     mem.forEach((m) => remove(m.sprite));
     mem = list.map((text, i) => ({ text, sprite: put(memLabel(text), memSlot(i)) }));
     updateMemCount();
+    mind.sync();
+    updateBoard();
   }
 
-  // ---- 睡眠 ----
-  async function fallAsleep(step) {
-    sleeping = true;
-    clearLines();
-    setBoard({});
-    caption.textContent = 'おやすみ…';
-    sound.setTheme('night');
-    sfx('sleep', step);
-    await Promise.all([room.fadeNight(1, step * 1.5), actor.walkTo(P.bed, step)]);
-    actor.eyesClosed = true;
-    await actor.lieDown(P.bedTop, step);
-    const zzz = put(makeLabel('Zzz', { size: 0.34, bg: '#3a4a7a', color: '#fff', border: '#8fa0d8' }),
-      new THREE.Vector3(P.bedTop.x, P.bedTop.y + 0.9, P.bedTop.z - 0.9));
-    await pop(zzz, step * 0.4);
-    await wait(step * 1.6);
-    remove(zzz);
-    await actor.getUp(P.bed, step);
-    caption.textContent = '寝ぼけたまま、思い出した文を棚にしまう';
-  }
-  async function wake(step) {
-    await actor.walkTo(P.home, step, FRONT);
-    sound.setTheme('day');
-    sfx('wake', step);
-    await room.fadeNight(0, step * 1.2);
-    actor.eyesClosed = false;
-    await actor.hop(step);
-    setBoard({});
-    sleeping = false;
-  }
-
-  // ---- トレースの種類ごとの演出 ----
+  // ---- 家と広場で見せるもの（聞く、忘れる） ----
   const handlers = {
-    async tokenize(ev, step) {
-      clearLines();
-      setBoard({});
-      caption.textContent = '';
-      const tokens = ev.tokens.length > ROW_LENGTH
-        ? [...ev.tokens.slice(0, ROW_LENGTH - 1), '…']
-        : ev.tokens;
-      heard = { text: ev.tokens.join(''), sprites: [] };
-      for (const [i, t] of tokens.entries()) {
-        const sprite = put(makeLabel(t, { size: 0.32 }), rowPos(i, HEARD_Y));
-        heard.sprites.push(sprite);
-        sfx('pop', step);
-        await pop(sprite, step * 0.2);
-      }
-      await wait(step * 0.3);
-    },
-
-    async lookup(ev, step) {
-      await actor.walkTo(P.shelf, step, BACK);
-      setBoard({ title: `「${ev.key}」の次に来る文字` });
-      sfx('book', step);
-      await actor.hop(step, 0.25);
-      if (!ev.found) {
-        sfx('empty', step);
-        setBoard({ ...board.state, message: '（からっぽ）' });
-        await wait(step * 0.8);
-      }
-    },
-
-    async probs(ev, step) {
-      cands = ev.candidates;
-      const top = [...cands].sort((a, b) => b.count - a.count).slice(0, BOARD_ROWS);
-      const rows = top.map((c) => ({ ...c, fill: 0 }));
-      const more = cands.length > BOARD_ROWS ? `ほか ${cands.length - BOARD_ROWS} 文字` : '';
-      const state = { title: board.state.title, rows, more };
-      sfx('bars', step);
-      await tween(step * 0.8, (k) => {
-        for (const r of rows) r.fill = ease(k);
-        setBoard(state);
-      });
-      await wait(step * 0.3);
-    },
-
-    async pick(ev, step) {
-      await actor.walkTo(P.table, step, LEFT);
-      const strip = cands.map((c) => ({ token: c.token, p: c.p }));
-      const state = { ...board.state, strip, needle: 0, diceText: 'サイコロをふる…' };
-      sfx('dice', step, step / 1000);
-      const spin = [1, 2, 3].map(() => (1 + Math.floor(Math.random() * 3)) * Math.PI);
-      await tween(step, (k) => {
-        dice.position.y = diceHome.y + Math.sin(k * Math.PI) * 0.8;
-        dice.rotation.set(spin[0] * k, spin[1] * k, spin[2] * k);
-        state.needle = ev.r * ease(k);
-        setBoard(state);
-      });
-      sfx('pick', step);
-      state.diceText = `サイコロ ${ev.r.toFixed(2)} → 「${ev.token}」`;
-      for (const seg of strip) seg.picked = seg.token === ev.token;
-      let row = state.rows.find((r) => r.token === ev.token);
-      if (!row) {
-        // 上位に入っていない文字が当たったら、最後の行と入れ替えて見せる
-        row = { ...cands.find((c) => c.token === ev.token), fill: 1 };
-        state.rows[state.rows.length - 1] = row;
-      }
-      row.picked = true;
-      setBoard(state);
-      await wait(step * 0.8);
-    },
-
-    async emit(ev, step) {
-      const big = put(makeLabel(ev.token, { size: 0.42, bg: '#f6c56b', border: '#d9a441' }),
-        new THREE.Vector3(diceHome.x, diceHome.y + 0.6, diceHome.z));
-      sfx('pop', step);
-      await pop(big, step * 0.3);
-      actor.held = big;
-      await actor.walkTo(P.horn, step, RIGHT);
-      actor.held = null;
-      sfx('toot', step, ev.token);
-      await fly(big, P.hornMouth, step * 0.4, 0.3);
-      remove(big);
-      const small = put(makeLabel(ev.token, { size: 0.32, bg: '#f6c56b', border: '#d9a441' }), P.hornMouth);
-      out.push(small);
-      await fly(small, rowPos(out.length - 1, OUT_Y), step * 0.5, 0.8);
-    },
-
-    async end(ev, step) {
-      caption.textContent = END_TEXT[ev.reason] ?? '';
-      await actor.walkTo(P.home, step, FRONT);
-      if (ev.reason === 'empty') {
-        await actor.turnTo(-0.5, step * 0.3);
-        await actor.turnTo(0.5, step * 0.3);
-        await actor.turnTo(FRONT, step * 0.3);
-      } else {
-        sfx('done', step);
-        await actor.hop(step);
-      }
-      await wait(step * 0.4);
-    },
-
     async hear(ev, step) {
-      const slot = memSlot(mem.filter((m) => !m.carried).length);
+      const slot = memSlot(mem.length);
       const sprite = memLabel(ev.text);
-      // 手前に並んでいる文字（聞いた言葉・出した言葉）がこの文なら、それがかごへ飛び込む
+      // 会話の札（話しかけられた言葉・返事）がこの文なら、それがかごへ飛び込む
       let line = null;
-      if (heard && heard.text === ev.text) {
-        line = heard.sprites;
-        heard = null;
-      } else if (out.length > 0) {
-        line = out;
-        out = [];
+      if (heardLabel?.userData.text === ev.text) {
+        line = heardLabel;
+        heardLabel = null;
+      } else if (saidLabel?.userData.text === ev.text) {
+        line = saidLabel;
+        saidLabel = null;
       }
       if (line) {
-        await Promise.all(line.map((s, i) => wait(i * step * 0.04).then(() => fly(s, P.basketTop, step * 0.5, 0.8))));
-        line.forEach(remove);
+        await fly(line, P.basketTop, step * 1.2, 1.2);
+        remove(line);
         put(sprite, slot);
         await pop(sprite, step * 0.3);
       } else if (incoming) {
@@ -330,52 +195,114 @@ export async function createStage(root) {
       await fadeAway(item.sprite, step * 0.6);
       await restack(step * 0.3);
     },
-
-    async replay(ev, step) {
-      if (!sleeping) await fallAsleep(step);
-      await actor.walkTo(P.basket, step, LEFT);
-      const item = mem.find((m) => m.text === ev.text && !m.carried);
-      if (item) {
-        item.carried = true;
-        item.sprite.center.set(0.5, 0.5);
-        actor.held = item.sprite;
-        restack(step * 0.3);
-      }
-      setBoard({ title: '思い出している文', message: shorten(ev.text, 14) });
-      await actor.walkTo(P.shelf, step, BACK);
-    },
-
-    async count(ev, step) {
-      const title = `「${ev.key}」の次に来る文字`;
-      setBoard({ title, count: { token: ev.token, num: ev.before } });
-      await wait(step * 0.4);
-      const hopping = actor.hop(step, 0.25);
-      await wait(step * 0.3);
-      sfx('count', step);
-      setBoard({ title, count: { token: ev.token, num: ev.after, changed: true } });
-      await hopping;
-      await wait(step * 0.4);
-    },
   };
 
-  // trace を順に再生する。getStep() は 1 手順あたりの時間（ミリ秒）を返す
+  const headOnScreen = () => room.screenPos(above(actor.root.position, 0, 1.25, 0));
+
+  // ---- 推論: 頭の中の画面に切り替えて見せ、戻ってから返事をする ----
+  async function playInfer(trace, getStep) {
+    let step = getStep();
+    clearLines();
+    caption.textContent = '';
+    const text = trace.find((ev) => ev.type === 'tokenize')?.tokens.join('') ?? '';
+    await actor.walkTo(P.home, step, FRONT);
+    heardLabel = put(makeLabel(shorten(text, 16), { size: 0.4, bg: '#dcebf5', border: '#9fc3e0' }),
+      above(P.home, -1.5, 2.3, 0.6));
+    heardLabel.userData.text = text;
+    sfx('hear', step);
+    await pop(heardLabel, step * 0.4);
+    caption.textContent = 'うーん…（考えている）';
+    await actor.hop(step, 0.2);
+
+    const opening = mind.open('infer', headOnScreen(), step * 4);
+    wait(step * 2).then(() => { caption.textContent = ''; });
+    await opening;
+    for (const ev of trace) await mind.handle(ev, getStep());
+    await mind.close(getStep() * 2);
+
+    step = getStep();
+    const reason = trace.find((ev) => ev.type === 'end')?.reason;
+    const reply = trace.filter((ev) => ev.type === 'emit').map((ev) => ev.token).join('') || EMPTY_REPLY;
+    saidLabel = put(makeLabel(shorten(reply, 16), { size: 0.46, bg: '#fff3cf', border: '#d9a441' }),
+      above(P.home, 0.9, 2.2, 0.3));
+    saidLabel.userData.text = reply;
+    sfx(reason === 'empty' ? 'empty' : 'done', step);
+    actor.cheer = reason !== 'empty';
+    caption.textContent = END_TEXT[reason] ?? '';
+    await pop(saidLabel, step * 0.4);
+    if (reason !== 'empty') await actor.hop(step);
+    await wait(step * 1.2);
+    actor.cheer = false;
+  }
+
+  // ---- 学習: ベッドで眠り、夢（頭の中の画面）の中で集計表を書き換える ----
+  async function playSleep(trace, getStep) {
+    let step = getStep();
+    clearLines();
+    caption.textContent = 'おやすみ…';
+    sound.setTheme('night');
+    sfx('sleep', step);
+    await Promise.all([room.fadeNight(1, step * 2), actor.walkTo(P.bed, step)]);
+    actor.eyesClosed = true;
+    await actor.lieDown(P.bedTop, step);
+    const zzz = put(makeLabel('Zzz', { size: 0.36, bg: '#3a4a7a', color: '#fff', border: '#8fa0d8' }),
+      above(P.bedTop, 0, 0.9, -0.9));
+    await pop(zzz, step * 0.4);
+    await wait(step * 1.2);
+    caption.textContent = '';
+
+    // 眠る前の短期記憶（これから思い出す文）を夢の画面に渡す
+    const remembered = trace.filter((ev) => ev.type === 'replay').map((ev) => ev.text);
+    await mind.open('learn', room.screenPos(above(P.bedTop, 0, 0.5, -0.8)), getStep() * 4, remembered);
+    for (const ev of trace) await mind.handle(ev, getStep());
+    // 夢の中でおぼえた文は、かごからなくなる
+    mem.forEach((m) => remove(m.sprite));
+    mem = [];
+    updateMemCount();
+    mind.sync();
+    updateBoard();
+    await mind.close(getStep() * 2);
+
+    step = getStep();
+    remove(zzz);
+    await actor.getUp(P.bed, step);
+    sound.setTheme('day');
+    sfx('wake', step);
+    await room.fadeNight(0, step * 1.5);
+    actor.eyesClosed = false;
+    await actor.walkTo(P.home, step, FRONT);
+    await actor.hop(step);
+  }
+
+  // trace を再生する。getStep() は 1 手順あたりの時間（ミリ秒）を返す
   async function play(trace, getStep) {
-    for (const ev of trace) {
-      // 知らない type は無視する
-      await handlers[ev.type]?.(ev, getStep());
+    const types = new Set(trace.map((ev) => ev.type));
+    if (types.has('replay')) {
+      await playSleep(trace, getStep);
+    } else if (types.has('tokenize') || types.has('lookup')) {
+      await playInfer(trace, getStep);
+    } else {
+      for (const ev of trace) {
+        // 知らない type は無視する
+        await handlers[ev.type]?.(ev, getStep());
+      }
     }
-    if (sleeping) await wake(getStep());
+    mind.sync();
+    updateBoard();
   }
 
   function say(text) {
     caption.textContent = text;
   }
 
+  function showIdle() {
+    caption.textContent = '';
+  }
+
   // ---- 盗み聞き ----
   // 外へ出て茂みの陰に隠れ、広場に count 人が現れる
   async function goListen(count, getStep) {
     clearLines();
-    setBoard({});
     caption.textContent = '外の話し声を聞きに行く';
     room.setShot('world', getStep() * 3);
     await actor.walkTo(P.doorIn, getStep());
@@ -390,7 +317,10 @@ export async function createStage(root) {
       npc.rotation.y = count === 1 ? FRONT : a + Math.PI;
       npc.scale.setScalar(0.001);
       npc.visible = true;
-      return wait(i * step * 0.3).then(() => tween(step * 0.6, (k) => npc.scale.setScalar(Math.max(0.001, ease(k)))));
+      return wait(i * step * 0.3).then(() => {
+        sfx('pop', step);
+        return tween(step * 0.6, (k) => npc.scale.setScalar(Math.max(0.001, ease(k))));
+      });
     }));
     caption.textContent = 'しーっ… 茂みの陰で聞いている';
   }
@@ -400,7 +330,7 @@ export async function createStage(root) {
     const step = getStep();
     const npc = npcs[index];
     const bubble = put(makeLabel(shorten(text, 16), { size: 0.44, border: NPC_COLORS[index] }),
-      new THREE.Vector3(npc.position.x, 2.05, npc.position.z));
+      new THREE.Vector3(npc.position.x, 2.15, npc.position.z));
     sfx('talk', step, index);
     await pop(bubble, step * 0.3);
     await tween(step * 1.4, (k) => { npc.position.y = Math.abs(Math.sin(k * Math.PI * 3)) * 0.12; });
@@ -425,11 +355,19 @@ export async function createStage(root) {
     await actor.walkTo(P.home, getStep(), FRONT);
   }
 
-  function showIdle() {
-    caption.textContent = '';
-    setBoard({});
+  // ---- 頭の中をのぞく（いつでも地図を見られる）。開いたら true を返す ----
+  async function toggleExplore() {
+    if (exploring) {
+      await mind.close(500);
+    } else {
+      mind.sync();
+      await mind.open('explore', headOnScreen(), 1100);
+    }
+    exploring = !exploring;
+    return exploring;
   }
 
   updateMemCount();
-  return { play, say, showIdle, syncMemory, goListen, speak, comeBack, npcColors: NPC_COLORS };
+  updateBoard();
+  return { play, say, showIdle, syncMemory, goListen, speak, comeBack, toggleExplore, npcColors: NPC_COLORS };
 }

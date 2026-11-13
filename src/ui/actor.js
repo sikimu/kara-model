@@ -12,14 +12,14 @@ export function createActor(room) {
   const feet = [part('footL'), part('footR')];
   const arms = [part('armL'), part('armR')];
   const sprout = part('sprout');
+  const head = part('head');
   const bodyY = body.position.y;
   const eyeScaleY = eyes[0].scale.y;
   const footBase = feet.map((f) => f.position.clone());
-  const armBase = arms.map((a) => a.position.clone());
 
   const actor = {
     root,
-    held: null,       // 頭の上に持っている札
+    cheer: false,     // 両腕を上げる
     eyesClosed: false,
     lying: false,
     walkTo,
@@ -37,6 +37,7 @@ export function createActor(room) {
     const breath = Math.sin(t * 2.2) * 0.012;
     body.scale.set(1 - breath, 1 + breath, 1 - breath);
     sprout.rotation.z = Math.sin(t * 1.7) * 0.12;
+    head.rotation.z = Math.sin(t * 0.9) * 0.04;
     const blink = actor.eyesClosed || (t % 3.4) < 0.12;
     for (const e of eyes) e.scale.y = eyeScaleY * (blink ? 0.12 : 1);
 
@@ -48,16 +49,13 @@ export function createActor(room) {
       f.position.y = footBase[i].y + Math.max(0, Math.cos(phase)) * 0.08 * on;
     });
 
-    // 腕: 札を持っているときは上げる
-    armsUp += ((actor.held ? 1 : 0) - armsUp) * 0.2;
+    // 腕: 肩を中心に回す。歩くときは前後に振り、よろこぶときは上げる
+    armsUp += ((actor.cheer ? 1 : 0) - armsUp) * 0.2;
     arms.forEach((a, i) => {
-      a.position.y = armBase[i].y + armsUp * 0.5;
-      a.position.x = armBase[i].x * (1 - armsUp * 0.35);
+      const side = i === 0 ? -1 : 1;
+      a.rotation.z = side * (0.15 + armsUp * 2.5);
+      a.rotation.x = walking > 0 ? Math.sin(walking * Math.PI * 2 + i * Math.PI) * 0.6 : 0;
     });
-
-    if (actor.held) {
-      actor.held.position.set(root.position.x, root.position.y + 1.45, root.position.z);
-    }
   });
 
   function turnTo(angle, ms) {

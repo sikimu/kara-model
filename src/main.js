@@ -95,9 +95,26 @@ closeButton.addEventListener('click', () => settings.close());
 settings.append(settingsTitle, soundBox, resetNote, resetButton, closeButton);
 settingsButton.addEventListener('click', () => settings.showModal());
 
+// 頭の中をのぞく（集計表の全体をいつでも見られる）
+const exploreButton = document.createElement('button');
+exploreButton.type = 'button';
+exploreButton.className = 'settings-button';
+exploreButton.textContent = '頭の中を見る';
+exploreButton.disabled = true;
+exploreButton.addEventListener('click', async () => {
+  if (exploreButton.dataset.open !== 'true' && busy) return;
+  exploreButton.disabled = true;
+  const open = await mind.toggleExplore();
+  exploreButton.dataset.open = String(open);
+  exploreButton.textContent = open ? '家にもどる' : '頭の中を見る';
+  busy = open;
+  bottom.disabled = open;
+  exploreButton.disabled = false;
+});
+
 const topRight = document.createElement('div');
 topRight.className = 'top-right';
-topRight.append(speedBox, settingsButton);
+topRight.append(exploreButton, speedBox, settingsButton);
 top.append(title, topRight);
 
 // 中: 3D の部屋
@@ -118,24 +135,27 @@ if (saved) model.restore(saved);
 bottom.disabled = true;
 let mind;
 try {
-  mind = await createStage(stageRoot);
+  mind = await createStage(stageRoot, model);
 } catch (e) {
   stageRoot.textContent = '3D の部屋を読み込めませんでした。通信を確認して、読み込み直してください。';
   throw e;
 }
 mind.syncMemory(model.shortMemory);
 bottom.disabled = false;
+exploreButton.disabled = false;
 
 let busy = false;
 async function run(fn) {
   if (busy) return;
   busy = true;
   bottom.disabled = true;
+  exploreButton.disabled = true;
   try {
     await fn();
   } finally {
     save(model);
     bottom.disabled = false;
+    exploreButton.disabled = false;
     busy = false;
   }
 }

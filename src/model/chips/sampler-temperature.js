@@ -4,7 +4,7 @@ export default {
   id: 'sampler-temperature',
   slot: 'sampler',
   name: '温度つきの抽選',
-  description: '低い温度ではよく聞いた文字を、高い温度では珍しい文字も選ぶ',
+  description: '温度を下げると確率の高い候補に集中し、上げると幅広い候補を選ぶ',
   probabilities(candidates, temperature) {
     const logs = candidates.map(c => Math.log(c.p) / temperature);
     const max = Math.max(...logs);

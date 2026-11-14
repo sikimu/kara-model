@@ -1,8 +1,8 @@
 export default {
   id: 'sampler-proportional',
   slot: 'sampler',
-  name: '回数に比例した抽選',
-  description: '多く聞いた文字ほど選ばれやすい',
+  name: '確率に従うサンプリング',
+  description: '予測した確率に従って、次のトークンをひとつ選ぶ',
   pick(candidates, random) {
     const r = random();
     let sum = 0;

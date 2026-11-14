@@ -98,7 +98,7 @@ export function createListen(root, { model, mind, show, run, complete, getStep, 
       });
     }
     if (script.length === 0) {
-      mind.say('話す言葉を入れてね（本のボタンでお手本が入る）');
+      mind.say('今日は、どんなおしゃべり？');
       return;
     }
 
@@ -106,7 +106,7 @@ export function createListen(root, { model, mind, show, run, complete, getStep, 
     run(async () => {
       if (getStep() === 0) {
         // 飛ばす: 聞いた結果だけ反映する
-        for (const { text } of script) model.hear(text);
+        model.hearDialogue(script);
         mind.showIdle();
         await show([]);
         complete('listen');
@@ -114,8 +114,9 @@ export function createListen(root, { model, mind, show, run, complete, getStep, 
       }
       await mind.goListen(count, getStep);
       for (const { speaker, text } of script) {
-        await mind.speak(speaker, text, model.hear(text).trace, getStep);
+        await mind.speak(speaker, text, [], getStep);
       }
+      await show(model.hearDialogue(script).trace);
       await mind.comeBack(getStep);
       mind.syncMemory(model.shortMemory);
       complete('listen');

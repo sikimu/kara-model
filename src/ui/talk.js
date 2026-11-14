@@ -37,7 +37,7 @@ export function createTalk(root, { model, mind, show, run, complete }) {
       const face = document.createElement('span');
       face.className = 'kara-face';
       face.setAttribute('aria-hidden', 'true');
-      face.textContent = '•ᴗ•';
+      face.classList.add('koto-mark');
       line.append(face);
     }
     const message = document.createElement('span');
@@ -66,9 +66,9 @@ export function createTalk(root, { model, mind, show, run, complete }) {
       addLine('kara', result.text);
 
       // やり取りは短期記憶に入る（無言の「……」は入れない）
-      const heard = [...model.hear(text).trace];
-      if (result.text !== EMPTY_REPLY) heard.push(...model.hear(result.text).trace);
-      await show(heard);
+      const turns = [{ speaker: 'you', text }];
+      if (result.text !== EMPTY_REPLY) turns.push({ speaker: 'koto', text: result.text });
+      await show(model.hearDialogue(turns).trace);
       complete('talk', result.text);
     }).then(focus);
   });

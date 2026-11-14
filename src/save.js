@@ -14,7 +14,8 @@ function isValid(data) {
     && Object.values(data.store).every((row) => isPlainObject(row)
       && Object.values(row).every((n) => Number.isInteger(n) && n > 0))
     && Array.isArray(data.shortMemory)
-    && data.shortMemory.every((s) => typeof s === 'string')
+    && data.shortMemory.every((s) => typeof s === 'string' || (isPlainObject(s) && Array.isArray(s.turns)
+      && s.turns.length > 0 && s.turns.every(t => isPlainObject(t) && typeof t.speaker === 'string' && typeof t.text === 'string')))
     && (data.stats === undefined
       || (isPlainObject(data.stats) && Number.isInteger(data.stats.sleeps)));
 }

@@ -133,10 +133,11 @@ export async function createRoom(root) {
 
   const loader = new GLTFLoader();
   const version = document.querySelector('meta[name="app-version"]')?.content ?? 'dev';
-  const [roomGltf, charGltf, npcGltf] = await Promise.all([
+  const [roomGltf, charGltf, npcGltf, sleepGltf] = await Promise.all([
     loader.loadAsync(`./assets/room.glb?v=${version}`),
     loader.loadAsync(`./assets/character.glb?v=${version}`),
     loader.loadAsync(`./assets/npc.glb?v=${version}`),
+    loader.loadAsync(`./assets/sleep-mobile.glb?v=${version}`),
   ]);
   for (const gltf of [roomGltf, charGltf, npcGltf]) {
     gltf.scene.traverse((o) => {
@@ -249,13 +250,24 @@ export async function createRoom(root) {
 
   // 時間で動かす仕組み。tween(ms, fn) は fn(0..1) を毎フレーム呼び、終わると解決する
   const tweens = new Set();
+  let fastForward = false;
+  function setFastForward(value) {
+    fastForward = value;
+    if (!value) return;
+    for (const tw of [...tweens]) {
+      if (tw.ambient) continue;
+      tweens.delete(tw);
+      tw.fn(1);
+      tw.resolve();
+    }
+  }
   const frameHandlers = [];
-  function tween(ms, fn) {
-    if (ms <= 0) {
+  function tween(ms, fn, ambient = false) {
+    if (ms <= 0 || (fastForward && !ambient)) {
       fn(1);
       return Promise.resolve();
     }
-    return new Promise((resolve) => tweens.add({ start: null, ms, fn, resolve }));
+    return new Promise((resolve) => tweens.add({ start: null, ms, fn, resolve, ambient }));
   }
   const wait = (ms) => tween(ms, () => {});
 
@@ -298,9 +310,11 @@ export async function createRoom(root) {
     get textScale() { return isTall() ? 1.6 : 1; },
     character: charGltf.scene,
     npc: npcGltf.scene, // 広場で話す人のひな形（場面には足していない）
+    sleepMobile: sleepGltf.scene,
     board,
     at,
     tween,
+    setFastForward,
     wait,
     onFrame: (fn) => frameHandlers.push(fn),
     setNight,

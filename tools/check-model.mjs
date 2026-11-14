@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { createModel } from '../src/model/model.js';
 
 const model = createModel({ random: () => 0.7 });
+model.setArchitecture('count');
 model.hear('あ');
 model.hear('あ');
 model.hear('い');

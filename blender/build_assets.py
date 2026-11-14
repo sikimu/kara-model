@@ -386,6 +386,15 @@ def build_room():
     box('basket_l', S(0.06, kh, kd), wicker, T(-kw / 2, kh / 2, 0), parent=basket, bevel=0.02)
     box('basket_r', S(0.06, kh, kd), wicker, T(kw / 2, kh / 2, 0), parent=basket, bevel=0.02)
     box('basket_band', S(kw + 0.02, 0.07, kd + 0.02), wood_dark, T(0, kh - 0.06, 0), parent=basket, bevel=0.02)
+    weave_light = mat('weave_light', (.90, .74, .48))
+    for row in range(5):
+        y = .08 + row * .075
+        for side in (-1, 1):
+            box(f'basket_weave_h{row}_{side}', S(kw + .025, .028, .025), weave_light, T(0, y, side * (kd / 2 + .035)), parent=basket, bevel=.009)
+            box(f'basket_weave_side{row}_{side}', S(.025, .028, kd), weave_light, T(side * (kw / 2 + .035), y, 0), parent=basket, bevel=.009)
+    for col in range(9):
+        for side in (-1, 1):
+            box(f'basket_weave_v{col}_{side}', S(.023, kh - .06, .022), wood_dark, T(-kw / 2 + .065 + col * .1, kh / 2, side * (kd / 2 + .04)), parent=basket, bevel=.008)
 
     # ベッド
     bed = empty('bed', T(1.75, 0, 1.9))
@@ -396,6 +405,10 @@ def build_room():
     box('bed_pillow', S(0.8, 0.14, 0.42), white, T(0, 0.55, -0.7), parent=bed, bevel=0.06)
     box('bed_blanket', S(1.24, 0.1, 1.15), blue, T(0, 0.5, 0.4), parent=bed, bevel=0.04)
     box('bed_blanket_fold', S(1.24, 0.12, 0.2), white, T(0, 0.51, -0.2), parent=bed, bevel=0.04)
+    stitch = mat('blanket_stitch', (.80, .88, .94))
+    for i in range(8):
+        for side in (-1, 1):
+            box(f'blanket_stitch{i}_{side}', S(.035, .012, .065), stitch, T(side * .54, .558, -.08 + i * .13), parent=bed, bevel=.006)
 
     # 観葉植物、窓、ランプ、絵（かざり）
     plant = empty('plant', T(W / 2 - 0.55, 0, -2.6))
@@ -431,11 +444,20 @@ def build_room():
     for i, x in enumerate((-.18, .18)):
         box(f'journal_page{i}', S(.35, .035, .48), white, T(x, .035, 0), parent=journal, bevel=.008)
     box('journal_ribbon', S(.035, .012, .59), books[0], T(.12, .06, .035), parent=journal, bevel=.003)
+    for side in (-1, 1):
+        box(f'desk_brace{side}', S(.075, .07, .64), wood_dark, T(side * .46, .22, 0), parent=desk, bevel=.018)
+    for i in range(4):
+        box(f'journal_page_edge{i}', S(.72, .003, .49), trim, T(0, .015 + .007 * i, 0), parent=journal, bevel=.001)
+    for side in (-1, 1):
+        for j in range(3):
+            box(f'journal_rule{side}_{j}', S(.22, .003, .006), books[2], T(side * .18, .055, -.13 + j * .10), parent=journal, bevel=0)
     chipbox = empty('chip_box', T(.8, 1.48, -2.55))
     box('chip_box_base', S(.68, .25, .48), wood, T(0, .125, 0), parent=chipbox, bevel=.025)
     box('chip_box_lid', S(.72, .065, .52), wood_dark, T(0, .28, 0), parent=chipbox, bevel=.018)
     box('chip_box_clasp', S(.11, .12, .025), books[1], T(0, .23, .255), parent=chipbox, bevel=.01)
     box('chip_box_emblem', S(.21, .025, .21), books[2], T(0, .325, 0), parent=chipbox, bevel=.02)
+    for side in (-1, 1):
+        box(f'chip_box_strap{side}', S(.045, .26, .49), wood_dark, T(side * .25, .15, 0), parent=chipbox, bevel=.012)
 
     house_names = {o.name for o in bpy.data.objects}
 
@@ -584,6 +606,79 @@ def build_npc():
     export('npc.glb')
 
 
+def build_workshop():
+    reset()
+    oak = mat('work_oak', (.72, .49, .30))
+    edge = mat('work_edge', (.40, .26, .17))
+    brass = mat('work_brass', (.93, .73, .37), metal=.45, rough=.35)
+    felt = mat('work_felt', (.25, .39, .32))
+    cream = mat('work_cream', (.96, .89, .69))
+    box('worktable', S(7, .28, 3.7), oak, T(0, -.2, 0), bevel=.14)
+    box('workmat', S(6.5, .035, 3.2), felt, T(0, -.04, 0), bevel=.08)
+    for side in (-1, 1):
+        box(f'work_rim{side}', S(.07, .09, 3.45), edge, T(side * 3.37, -.02, 0), bevel=.025)
+    colors = [(.55, .74, .77), (.66, .60, .78), (.57, .73, .48), (.90, .68, .38), (.80, .49, .42)]
+    for i, name in enumerate(('tokenizer', 'context', 'predictor', 'sampler', 'learner')):
+        x = (i - 2) * 1.2
+        box(f'socket_{name}', S(1.05, .12, 1.5), edge, T(x, .015, 0), bevel=.07)
+        box(f'socket_inner_{name}', S(.9, .025, 1.22), felt, T(x, .085, 0), bevel=.04)
+        for side in (-1, 1):
+            sphere(f'socket_screw_{name}{side}', .045, brass, T(x + side * .41, .10, .62), scale=S(1, .3, 1))
+        chip = empty(f'chip_{name}', T(x, .18, 0))
+        color = mat(f'chip_color_{name}', colors[i], rough=.45)
+        box(f'{name}_body', S(.82, .15, 1.05), color, T(0, 0, 0), parent=chip, bevel=.07)
+        box(f'{name}_badge', S(.61, .025, .68), cream, T(0, .09, -.02), parent=chip, bevel=.04)
+        for j in range(4):
+            for side in (-1, 1):
+                box(f'{name}_pin{j}_{side}', S(.13, .045, .07), brass, T(side * .45, -.015, -.32 + j * .21), parent=chip, bevel=.012)
+        # 切り口、道筋、棚、サイコロ、芽を金属の象眼で表す。
+        if i == 0:
+            for j in range(3):
+                box(f'cut_mark{j}', S(.07, .035, .4), brass, T((j - 1) * .17, .12, 0), parent=chip, bevel=.015)
+        elif i == 1:
+            for j in range(3):
+                sphere(f'path_mark{j}', .075, brass, T((j - 1) * .17, .13, (j - 1) * .15), scale=S(1, .3, 1), parent=chip)
+        elif i == 2:
+            for j in range(3):
+                box(f'shelf_mark{j}', S(.44, .035, .06), brass, T(0, .12, (j - 1) * .16), parent=chip, bevel=.012)
+        elif i == 3:
+            for x2, z2 in ((-.13, -.13), (.13, -.13), (0, 0), (-.13, .13), (.13, .13)):
+                sphere(f'die_mark{x2}_{z2}', .045, brass, T(x2, .13, z2), scale=S(1, .35, 1), parent=chip)
+        else:
+            box('sprout_stem', S(.035, .025, .4), brass, T(0, .12, .05), parent=chip)
+            for side in (-1, 1):
+                sphere(f'sprout_leaf{side}', .13, brass, T(side * .11, .13, -.07), scale=S(1, .2, .6), parent=chip)
+    export('workshop.glb')
+
+
+def build_sleep_mobile():
+    reset()
+    gold = mat('dream_gold', (.98, .82, .43), rough=.35, glow=.15)
+    pearl = mat('dream_pearl', (.87, .94, .96), rough=.25)
+    # 本物の立体の三日月。文字の Zzz の代わりにベッドの上で揺れる。
+    outline = []
+    inner_radius = math.hypot(.03, math.sin(math.radians(60)) * .3)
+    inner_start = math.acos(-.03 / inner_radius)
+    for j in range(33):
+        a = math.radians(60 + 240 * j / 32)
+        outline.append((math.cos(a) * .3, math.sin(a) * .3))
+    for j in range(33):
+        a = inner_start + (2 * math.pi - 2 * inner_start) * j / 32
+        outline.append((.18 + math.cos(a) * inner_radius, math.sin(a) * inner_radius))
+    mesh = bpy.data.meshes.new('dream_moon')
+    mesh.from_pydata([T(x, y, 0) for x, y in outline], [], [(j, j + 1, j + 34, j + 33) for j in range(32)])
+    moon = bpy.data.objects.new('dream_moon', mesh)
+    bpy.context.collection.objects.link(moon)
+    mesh.materials.append(gold)
+    solid = moon.modifiers.new('thickness', 'SOLIDIFY'); solid.thickness = .07
+    bevel = moon.modifiers.new('soft_edge', 'BEVEL'); bevel.width = .02; bevel.segments = 3
+    for i, (x, y) in enumerate(((-.4, .25), (.42, .12), (.26, -.3))):
+        sphere(f'dream_pearl{i}', .055 + .01 * i, pearl, T(x, y, 0))
+    export('sleep-mobile.glb')
+
+
+build_workshop()
+build_sleep_mobile()
 build_character()
 build_room()
 build_npc()

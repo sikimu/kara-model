@@ -6,12 +6,12 @@ import { createRoom, makeLabel } from './room.js';
 import { createActor } from './actor.js';
 import { createMindView } from './mindview.js';
 import { sound } from './sound.js';
-import { MEMORY_CAPACITY, EMPTY_REPLY } from '../model/model.js';
+import { MEMORY_CAPACITY, EMPTY_REPLY, memoryText } from '../model/model.js';
 
 const END_TEXT = {
-  eos: '返事ができた',
-  empty: 'まだ何もおぼえていないので、何も言えない',
-  limit: '長くなりすぎたので、途中でやめた',
+  eos: '',
+  empty: '',
+  limit: 'ひと息つこう。',
 };
 const NPC_COLORS = ['#e58a6f', '#6fa8dc', '#8cc084', '#c59ad6'];
 const FRONT = 0;
@@ -54,6 +54,16 @@ export async function createStage(root, model) {
     plaza: room.at('plaza_center'),
   };
   actor.root.position.copy(P.home);
+  const sleepMobile = room.sleepMobile;
+  sleepMobile.position.copy(aboveBed());
+  sleepMobile.visible = false;
+  scene.add(sleepMobile);
+  function aboveBed() { return P.bedTop.clone().add(new THREE.Vector3(0, 1, -0.7)); }
+  room.onFrame(t => {
+    if (!sleepMobile.visible) return;
+    sleepMobile.position.y = P.bedTop.y + 1 + Math.sin(t * 1.5) * .08;
+    sleepMobile.rotation.z = Math.sin(t) * .12;
+  });
 
   let heardLabel = null; // 話しかけられた言葉の札
   let saidLabel = null;  // 返事の札
@@ -146,8 +156,8 @@ export async function createStage(root, model) {
     const s = mind.stats();
     room.board.write('そだちぐあい', [
       { label: 'おぼえた文字', value: `${s.kinds} 種類` },
-      { label: '文字のつながり', value: `${s.links} 本` },
-      { label: '数えた回数', value: `${s.total} 回` },
+      { label: s.neural ? '考え方' : '文字のつながり', value: s.neural ? '自己注意' : `${s.links} 本` },
+      { label: s.neural ? '重みの更新' : '数えた回数', value: `${s.total} 回` },
       { label: '眠った回数', value: `${s.sleeps} 回` },
     ]);
     actor.setGrowth(s.kinds);
@@ -156,7 +166,10 @@ export async function createStage(root, model) {
   // ---- 短期記憶（かごの上の札） ----
   // 札を積む場所。家ではかごの上、お出掛け中はキャラクターのそば（メモ）
   let memBase = P.basketTop;
-  const memSlot = (i) => new THREE.Vector3(memBase.x - 0.5, memBase.y + 0.2 + i * 0.36 * room.textScale, memBase.z);
+  const memSlot = (i) => new THREE.Vector3(memBase.x - 0.5, memBase.y + 0.2 + Math.min(i, 2) * 0.28 * room.textScale, memBase.z);
+  function limitMemoryLabels() {
+    mem.forEach((m, i) => { m.sprite.visible = i >= mem.length - 3; m.sprite.position.copy(memSlot(Math.max(0, i - mem.length + 3))); });
+  }
   function memLabel(text) {
     const sprite = label(shorten(text, 9), { size: 0.3, border: '#9cc27c' });
     sprite.center.set(0, 0.5);
@@ -164,7 +177,8 @@ export async function createStage(root, model) {
   }
   function updateMemCount() {
     if (memCount) remove(memCount);
-    memCount = label(`短期記憶 ${mem.length}/${MEMORY_CAPACITY}`, { size: 0.24, bg: '#eef5e6', border: '#9cc27c' });
+    limitMemoryLabels();
+    memCount = label(`${mem.length} / ${MEMORY_CAPACITY}`, { size: 0.24, bg: '#eef5e6', border: '#9cc27c' });
     put(memCount, new THREE.Vector3(memBase.x, memBase === P.basketTop ? 0.28 : memBase.y - 0.15, memBase.z + 0.5));
   }
   function restack(ms) {
@@ -174,7 +188,7 @@ export async function createStage(root, model) {
   function syncMemory(list) {
     clearLines();
     mem.forEach((m) => remove(m.sprite));
-    mem = list.map((text, i) => ({ text, sprite: put(memLabel(text), memSlot(i)) }));
+    mem = list.map((entry, i) => { const text = memoryText(entry); return { text, sprite: put(memLabel(text), memSlot(i)) }; });
     updateMemCount();
     mind.sync();
     updateBoard();
@@ -241,7 +255,7 @@ export async function createStage(root, model) {
     heardLabel.userData.text = text;
     sfx('hear', step);
     await pop(heardLabel, step * 0.4);
-    caption.textContent = 'うーん…（考えている）';
+    caption.textContent = '';
     await actor.hop(step, 0.2);
 
     const opening = mind.open('infer', headOnScreen(), step * 4);
@@ -249,6 +263,7 @@ export async function createStage(root, model) {
     await opening;
     for (const ev of trace) {
       await gate();
+      if (getStep() === 0) break;
       await mind.handle(ev, getStep());
     }
     await mind.close(getStep() * 2);
@@ -256,6 +271,12 @@ export async function createStage(root, model) {
     step = getStep();
     const reason = trace.find((ev) => ev.type === 'end')?.reason;
     const reply = trace.filter((ev) => ev.type === 'emit').map((ev) => ev.token).join('') || EMPTY_REPLY;
+    if (reply === EMPTY_REPLY) {
+      caption.textContent = '';
+      await actor.turnTo(.25, step * .6);
+      await actor.turnTo(FRONT, getStep() * .6);
+      return;
+    }
     saidLabel = put(label(shorten(reply, lineMax()), { size: 0.46, bg: '#fff3cf', border: '#d9a441' }),
       tall() ? above(P.home, 0, 2.5, 0.3) : above(P.home, 0.9, 2.2, 0.3));
     saidLabel.userData.text = reply;
@@ -269,8 +290,11 @@ export async function createStage(root, model) {
   }
 
   // ---- 学習: ベッドで眠り、夢（頭の中の画面）の中で集計表を書き換える ----
-  async function playSleep(trace, getStep) {
-    let step = getStep();
+  let sleeping = false;
+  async function prepareSleep(getStep) {
+    if (sleeping) return;
+    sleeping = true;
+    const step = getStep();
     clearLines();
     caption.textContent = 'おやすみ…';
     sound.setTheme('night');
@@ -278,17 +302,21 @@ export async function createStage(root, model) {
     await Promise.all([room.fadeNight(1, step * 2), actor.walkTo(P.bed, step)]);
     actor.eyesClosed = true;
     await actor.lieDown(P.bedTop, step);
-    const zzz = put(label('Zzz', { size: 0.36, bg: '#3a4a7a', color: '#fff', border: '#8fa0d8' }),
-      above(P.bedTop, 0, 0.9, -0.9));
-    await pop(zzz, step * 0.4);
+    sleepMobile.visible = true;
+    await tween(step * .4, k => sleepMobile.scale.setScalar(Math.max(.001, k)));
     await wait(step * 1.2);
     caption.textContent = '';
+  }
+
+  async function playSleep(trace, getStep) {
+    await prepareSleep(getStep);
 
     // 眠る前の短期記憶（これから思い出す文）を夢の画面に渡す
-    const remembered = trace.filter((ev) => ev.type === 'replay').map((ev) => ev.text);
+    const remembered = trace.filter((ev) => ev.type === 'forget').map((ev) => ev.text);
     await mind.open('learn', room.screenPos(above(P.bedTop, 0, 0.5, -0.8)), getStep() * 4, remembered);
     for (const ev of trace) {
       await gate();
+      if (getStep() === 0) break;
       await mind.handle(ev, getStep());
     }
     // 夢の中でおぼえた文は、かごからなくなる
@@ -299,8 +327,13 @@ export async function createStage(root, model) {
     updateBoard();
     await mind.close(getStep() * 2);
 
-    step = getStep();
-    remove(zzz);
+    await finishSleep(getStep);
+  }
+  async function finishSleep(getStep) {
+    if (!sleeping) return;
+    sleeping = false;
+    const step = getStep();
+    sleepMobile.visible = false;
     await actor.getUp(P.bed, step);
     sound.setTheme('day');
     sfx('wake', step);
@@ -334,6 +367,7 @@ export async function createStage(root, model) {
 
   function showIdle() {
     caption.textContent = '';
+    clearLines();
   }
 
   // ---- お出掛け ----
@@ -425,11 +459,9 @@ export async function createStage(root, model) {
     if (petting) return;
     petting = true;
     sound.play('pet');
-    const heart = put(label('♥', { size: 0.4, bg: '#ffe3ea', color: '#e0507a', border: '#f3a6bd' }),
-      above(actor.root.position, 0, 1.7, 0));
     actor.cheer = true;
     if (!actor.lying) actor.hop(300, 0.25);
-    await fadeAway(heart, 900);
+    await wait(900);
     actor.cheer = false;
     petting = false;
   }
@@ -499,8 +531,9 @@ export async function createStage(root, model) {
   updateMemCount();
   updateBoard();
   return {
-    play, say, showIdle, syncMemory, goListen, speak, comeBack, toggleExplore,
+    play, say, showIdle, syncMemory, goListen, speak, comeBack, toggleExplore, prepareSleep, finishSleep,
     setPaused, stepOnce: release, npcColors: NPC_COLORS,
+    setFastForward: room.setFastForward,
     // 部屋のものが押されたら fn(id) を呼ぶ（何もないところを押したら id は null）
     triggerAction: trigger,
     onAction: (fn) => { onAction = fn; },

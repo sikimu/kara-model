@@ -17,12 +17,13 @@ const SPEEDS = Array.from({ length: 10 }, (_, i) => Math.round(1600 * (80 / 1600
 let speedIndex = 5;
 let skip = false;
 let paused = false;
+let skipOnce = false;
 try {
   const stored = JSON.parse(localStorage.getItem('kara-model-ui'));
   if (Number.isInteger(stored?.speedIndex) && stored.speedIndex >= 0 && stored.speedIndex < 10) speedIndex = stored.speedIndex;
   if (typeof stored?.skip === 'boolean') skip = stored.skip;
 } catch { /* 保存を使えなくても遊べる */ }
-const getStep = () => skip ? 0 : SPEEDS[speedIndex];
+const getStep = () => skip || skipOnce ? 0 : SPEEDS[speedIndex];
 function saveUI() {
   try { localStorage.setItem('kara-model-ui', JSON.stringify({ speedIndex, skip })); } catch { /* 保存は任意 */ }
 }
@@ -50,11 +51,21 @@ hud.className = 'hud';
 const homeButton = iconButton('home', '家にもどる', 'home-button');
 const pauseButton = iconButton('pause', '一時停止', 'pause-button');
 const stepButton = iconButton('step', 'コマ送り（1 手順だけ進める）', 'step-button');
+const skipButton = iconButton('skip', 'ここから飛ばす', 'skip-button');
+skipButton.hidden = true;
+skipButton.addEventListener('click', () => {
+  skipOnce = true;
+  paused = false;
+  mind.setPaused(false);
+  mind.setFastForward(true);
+  updatePlayback();
+  skipButton.disabled = true;
+});
 const settingsButton = iconButton('gear', '設定', 'settings-button');
 homeButton.hidden = true;
 pauseButton.hidden = true;
 stepButton.hidden = true;
-hud.append(homeButton, pauseButton, stepButton, settingsButton);
+hud.append(homeButton, pauseButton, stepButton, skipButton, settingsButton);
 
 function updatePlayback() {
   pauseButton.innerHTML = ICONS[paused ? 'play' : 'pause'];
@@ -250,15 +261,21 @@ function complete(action, reply) {
 function refresh() {
   placeGuideTarget();
   app.dataset.busy = String(busy);
-  mind.setInteractive(started && !busy);
-  dock.hidden = busy || openPart === null;
+  mind.setInteractive(started && !busy && openPart !== 'chips');
+  dock.hidden = busy || openPart === null || openPart === 'chips';
   for (const [id, root] of Object.entries(partRoots)) root.hidden = id !== openPart;
   homeButton.hidden = !exploring;
   pauseButton.hidden = !busy || exploring;
   stepButton.hidden = !busy || exploring;
+  skipButton.hidden = !busy || exploring;
+  skipButton.disabled = skipOnce;
+  stageRoot.inert = !started || openPart === 'chips';
+  hud.hidden = openPart === 'chips';
+  logo.hidden = !started || openPart === 'chips';
 }
 
 function setPart(id) {
+  if (openPart === 'chips' && id !== 'chips') partRoots.chips.dispatchEvent(new Event('close'));
   openPart = id;
   refresh();
   if (id) partRoots[id].dispatchEvent(new Event('open'));
@@ -267,12 +284,15 @@ function setPart(id) {
 async function run(fn) {
   if (busy) return;
   busy = true;
+  skipOnce = false;
   refresh();
   try {
     await fn();
   } finally {
     save(model);
     busy = false;
+    skipOnce = false;
+    mind.setFastForward(false);
     refresh();
   }
 }
@@ -315,14 +335,14 @@ homeButton.addEventListener('click', toggleExplore);
 
 const ctx = { model, mind, show, run, getStep, complete, close: () => setPart(null),
   acknowledge: () => { model.tutorial.reflection = null; save(model); refresh(); },
-  changed: () => save(model) };
+  changed: () => { save(model); mind.syncMemory(model.shortMemory); } };
 for (const part of PARTS) {
   const root = document.createElement('section');
   root.className = `part ${part.id}`;
   root.hidden = true;
   part.create(root, ctx);
   partRoots[part.id] = root;
-  dock.append(root);
+  (part.id === 'chips' ? app : dock).append(root);
 }
 
 // 部屋のものが押された。同じものをもう一度押すか、何もないところを押すと閉じる

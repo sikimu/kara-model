@@ -79,7 +79,8 @@ export function createMemory(root, { model, close }) {
       empty.innerHTML = `${ICONS.basket}<span>いまは、からっぽ。</span>`;
       stack.append(empty);
     }
-    model.shortMemory.forEach((text, i) => {
+    model.shortMemory.forEach((entry, i) => {
+      const text = typeof entry === 'string' ? entry : entry.turns.map(t => `${({ you: 'あなた', koto: 'コト', unknown: 'ことば' })[t.speaker] ?? `話し手 ${Number(t.speaker) + 1}`}　${t.text}`).join('\n');
       const card = document.createElement('button');
       card.type = 'button';
       card.className = 'word-slip';
@@ -96,46 +97,4 @@ export function createMemory(root, { model, close }) {
   });
 }
 
-export function createChips(root, { model, close, changed }) {
-  root.classList.add('item-view', 'chip-tray');
-  header(root, 'ことばのチップ箱', close);
-  const socket = document.createElement('div');
-  socket.className = 'chip-socket';
-  const choices = document.createElement('div');
-  choices.className = 'chip-choices';
-  choices.setAttribute('role', 'group');
-  choices.setAttribute('aria-label', '選び方チップ');
-  const names = ['いつものサイコロ', 'あたたかいサイコロ'];
-  const icons = ['chip', 'temperature'];
-  const buttons = model.samplers.map((chip, i) => {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = `chip-piece chip-piece-${i}`;
-    button.dataset.chip = chip.id;
-    button.innerHTML = `${ICONS[icons[i]]}<span>${names[i]}</span>`;
-    button.addEventListener('click', () => { model.setSampler(chip.id); sync(); changed(); });
-    choices.append(button);
-    return button;
-  });
-  const heat = document.createElement('label');
-  heat.className = 'chip-heat';
-  const temperature = document.createElement('input');
-  temperature.type = 'range';
-  temperature.min = '0.25'; temperature.max = '2'; temperature.step = '0.25';
-  temperature.setAttribute('aria-label', '温度');
-  const cool = document.createElement('span'); cool.textContent = 'いつもの';
-  const warm = document.createElement('span'); warm.textContent = 'いろいろ';
-  heat.append(cool, temperature, warm);
-  temperature.addEventListener('input', () => { model.setSampler(model.chips.sampler.id, Number(temperature.value)); sync(); changed(); });
-  root.append(socket, choices, heat);
-  function sync() {
-    const index = model.samplers.indexOf(model.chips.sampler);
-    buttons.forEach((b, i) => b.setAttribute('aria-pressed', String(i === index)));
-    socket.innerHTML = `<span>${ICONS[icons[index]]}</span><small>いま、ついているチップ</small>`;
-    heat.hidden = index === 0;
-    temperature.value = String(model.options.temperature);
-    temperature.setAttribute('aria-valuetext', `温度 ${model.options.temperature}`);
-  }
-  root.addEventListener('open', sync);
-  sync();
-}
+export { createWorkshop as createChips } from './workshop.js';

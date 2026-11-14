@@ -4,7 +4,8 @@
 
 import { FONT, roundRect } from './room.js';
 import { sound } from './sound.js';
-import { BOS, EOS, MAX_OUTPUT, MEMORY_CAPACITY } from '../model/model.js';
+import { BOS, EOS, MAX_OUTPUT, MEMORY_CAPACITY, memoryText } from '../model/model.js';
+import { drawNeural } from './neural-view.js';
 
 const SLOTS = [
   ['tokenizer', '切り方'],
@@ -14,14 +15,14 @@ const SLOTS = [
   ['learner', '学習'],
 ];
 const MODE_TITLE = {
-  infer: '頭の中: 返事を考えている（推論）',
-  learn: '夢の中: 聞いたことをおぼえている（学習）',
-  explore: '頭の中をのぞいている（文字をクリックすると、その行が見える）',
+  infer: 'コトの考えごと',
+  learn: 'コトの夢',
+  explore: 'ことばのつながり',
 };
 const END_TEXT = {
-  eos: '■（おわり）が出たので、おしまい',
-  empty: 'この文脈の行がからっぽ。何も言えない',
-  limit: `${MAX_OUTPUT} 文字になったので、打ち切り`,
+  eos: 'おしまい',
+  empty: 'ことばは、まだ眠っている',
+  limit: 'ひと息つこう',
 };
 const GOLD = '#f6c56b';
 const ease = (k) => k * k * (3 - 2 * k);
@@ -112,6 +113,10 @@ export function createMindView(root, room, model) {
   }
 
   function stats() {
+    if (model.chips.predictor.id === 'predictor-transformer') {
+      const net = model.network.snapshot();
+      return { kinds: Math.max(0, net.vocab.length - 8), links: 0, total: net.updates, sleeps: model.stats.sleeps, neural: true };
+    }
     let total = 0;
     for (const e of edges.values()) total += e.count;
     return {
@@ -425,7 +430,7 @@ export function createMindView(root, room, model) {
     g.textAlign = 'left';
     g.font = `bold ${u * 1.2}px ${FONT}`;
     g.fillStyle = '#fff';
-    g.fillText(narrow() ? { infer: '頭の中：返事を考えている', learn: '夢の中：聞いたことをおぼえる', explore: '頭の中：文字を押して行を見る' }[v.mode] : MODE_TITLE[v.mode], 28, narrow() ? 80 : 30, narrow() ? W - 56 : W * 0.6 - 28);
+    g.fillText(MODE_TITLE[v.mode], 28, narrow() ? 80 : 30, narrow() ? W - 56 : W * 0.6 - 28);
     const line = learn ? v.seq : v.heard;
     if (line) {
       g.font = `${u * 0.9}px ${FONT}`;
@@ -438,7 +443,6 @@ export function createMindView(root, room, model) {
         g.font = `${u * 0.8}px ${FONT}`;
         g.fillStyle = '#8f9bd0';
         g.textAlign = 'left';
-        g.fillText('※ 今の空モデルは、聞いた言葉の中身を返事に使えない（直前の 1 文字しか見ない）', 28, 108);
       }
     }
 
@@ -495,7 +499,7 @@ export function createMindView(root, room, model) {
       g.font = `${u * 1.1}px ${FONT}`;
       g.fillStyle = '#aebcf0';
       g.textAlign = 'center';
-      g.fillText('まだ何もおぼえていない（まっさら）', (a.x0 + a.x1) / 2, (a.y0 + a.y1) / 2 - 60, a.x1 - a.x0);
+      g.fillText('まだ、まっしろ', (a.x0 + a.x1) / 2, (a.y0 + a.y1) / 2 - 60, a.x1 - a.x0);
     }
     if (avatar.visible) drawAvatar();
     for (const f of v.floaters) {
@@ -546,7 +550,7 @@ export function createMindView(root, room, model) {
     const h3 = u * 6.4;
     const h4 = narrow() ? 160 : u * 8.2;
     const h2 = H - y - h3 - h4 - gap * 2 - 18;
-    card(px, y, pw, h2, v.rowKey ? `「${v.rowKey}」の次に来る文字（集計表の 1 行）` : '集計表の 1 行', u);
+    card(px, y, pw, h2, v.rowKey ? `「${v.rowKey}」のつづき` : 'ことばの引き出し', u);
     const rowH = u * 1.75;
     const maxRows = Math.max(1, Math.floor((h2 - u * 2.6) / rowH) - 1);
     if (v.message) {
@@ -599,12 +603,12 @@ export function createMindView(root, room, model) {
       g.font = `${u * 0.8}px ${FONT}`;
       g.fillStyle = '#8f9bd0';
       g.textAlign = 'right';
-      g.fillText(`ほか ${v.rows.length - shown.length} 文字（全部で ${v.rows.length} 文字）`, px + pw - 14, y + h2 - u * 0.9);
+      g.fillText(`ほか ${v.rows.length - shown.length} 文字`, px + pw - 14, y + h2 - u * 0.9);
     }
     y += h2 + gap;
 
     if (learn) {
-      card(px, y, pw, h3, '書き換え（数えて +1）', u);
+      card(px, y, pw, h3, 'つながりを、ひとつ', u);
       if (v.write) {
         g.font = `bold ${u * 1.5}px ${FONT}`;
         g.fillStyle = '#fff';
@@ -615,7 +619,7 @@ export function createMindView(root, room, model) {
         g.fillText(v.write.done ? `${v.write.before} → ${v.write.after} 回` : `${v.write.before} 回`, px + pw - 18, y + u * 3.9);
       }
     } else {
-      card(px, y, pw, h3, narrow() ? '抽選（回数に比例した幅の帯）' : '抽選（回数に比例した幅の帯に、サイコロの針を落とす）', u);
+      card(px, y, pw, h3, 'ことばのくじ', u);
       if (v.strip) {
         const sx = px + 14;
         const sw = pw - 28;
@@ -654,7 +658,7 @@ export function createMindView(root, room, model) {
     y += h3 + gap;
 
     if (v.mode === 'infer') {
-      card(px, y, pw, h4, `口から出る言葉（${v.out.length} / ${MAX_OUTPUT} 文字）`, u);
+      card(px, y, pw, h4, `コトの返事　${v.out.length} / ${MAX_OUTPUT}`, u);
       const per = Math.max(1, Math.floor((pw - 28) / 31));
       for (let i = 0; i * per < Math.max(1, v.out.length); i++) {
         tiles(v.out.slice(i * per, (i + 1) * per), px + 14, y + u * 2 + i * 32, 28, pw - 28);
@@ -664,8 +668,8 @@ export function createMindView(root, room, model) {
       g.textAlign = 'left';
       g.fillText(v.endText, px + 14, y + h4 - u * 1.1, pw - 28);
     } else {
-      card(px, y, pw, h4, `短期記憶（${mem.length} / ${MEMORY_CAPACITY} 文）`, u);
-      mem.forEach((m, i) => {
+      card(px, y, pw, h4, `ことばのかご　${mem.length} / ${MEMORY_CAPACITY}`, u);
+      mem.slice(0, 3).forEach((m, i) => {
         const my = y + u * 2.5 + i * u * 1.15;
         g.save(); g.globalAlpha = 1 - (m.fade ?? 0);
         g.font = `${m.active ? 'bold ' : ''}${u * 0.9}px ${FONT}`;
@@ -678,7 +682,7 @@ export function createMindView(root, room, model) {
         g.font = `${u * 0.9}px ${FONT}`;
         g.fillStyle = '#8f9bd0';
         g.textAlign = 'left';
-        g.fillText('（からっぽ）', px + 16, y + u * 2.5);
+        g.fillText('からっぽ', px + 16, y + u * 2.5);
       }
     }
   }
@@ -703,7 +707,8 @@ export function createMindView(root, room, model) {
     g.clearRect(0, 0, W, H);
     if (reveal <= 0) return;
     simulate();
-    drawScene();
+    if (model.chips.predictor.id === 'predictor-transformer') drawNeural(g, v, model, W, H);
+    else drawScene();
     drawParticles();
     if (v.flight) {
       const f = v.flight, start = nodes.get(f.token), end = outputPoint(v.out.length);
@@ -762,15 +767,19 @@ export function createMindView(root, room, model) {
   async function breathe(run) {
     while (run === ambientRun && reveal > 0) {
       const start = clock;
-      await room.tween(ambientStep * 4, (k) => { if (run === ambientRun) clock = start + k; });
+      await room.tween(ambientStep * 4, (k) => { if (run === ambientRun) clock = start + k; }, true);
     }
   }
   async function open(mode, from, ms, memory = model.shortMemory) {
     v = fresh(mode);
+    if (model.chips.predictor.id === 'predictor-transformer') {
+      const net = model.network.snapshot();
+      v.matrices = [net.weights.q.slice(0, 144), net.weights.f1.slice(0, 144), net.weights.out.slice(-144)];
+    }
     avatar.visible = false;
     avatar.hop = 0;
     origin = from ?? { x: W / 2, y: H / 2 };
-    mem = memory.map((text) => ({ text, active: false }));
+    mem = memory.map((entry) => ({ text: memoryText(entry), active: false }));
     canvas.style.pointerEvents = 'auto';
     root.style.overflowY = narrow() ? 'auto' : 'hidden';
     sfx('moya', ms);
@@ -798,7 +807,7 @@ export function createMindView(root, room, model) {
       if (Math.hypot(n.x - x, n.y - y) <= nodeRadius(n) + 6) {
         v.rowKey = n.token;
         v.rows = rowOf(n.token);
-        v.message = v.rows.length === 0 ? '（この文字の次は、まだ何もおぼえていない）' : '';
+        v.message = v.rows.length === 0 ? 'この先は、まだまっしろ' : '';
         v.slot = 'predictor';
         sfx('pop', ambientStep);
         return;
@@ -857,7 +866,7 @@ export function createMindView(root, room, model) {
       await animate(step * 1.1, (k) => { v.scan = k; v.drawer = k; });
       v.slot = 'predictor';
       if (!ev.found) {
-        v.message = '（からっぽ）';
+        v.message = 'からっぽ';
         sfx('empty', step);
         burst(W * 0.8, H * 0.38, 'dust', 12);
       }
@@ -982,6 +991,17 @@ export function createMindView(root, room, model) {
   };
 
   async function handle(ev, step) {
+    if (model.chips.predictor.id === 'predictor-transformer') {
+      if (ev.type === 'attention') v.attention = ev;
+      if (ev.type === 'probs') v.rows = ev.candidates;
+      if (ev.type === 'pick') v.picked = ev.token;
+      if (ev.type === 'emit') v.out.push(ev.token);
+      if (ev.type === 'end') v.endText = END_TEXT[ev.reason];
+      if (ev.type === 'gradient') { (v.losses ??= []).push(ev); v.matrices = ev.matrices; }
+      if (ev.type === 'replay') v.seq = ev.tokens;
+      await animate(step * (ev.type === 'gradient' ? 2 : .8));
+      return;
+    }
     ambientStep = step > 0 ? step : ambientStep;
     await handlers[ev.type]?.(ev, step);
   }

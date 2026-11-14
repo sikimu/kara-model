@@ -440,6 +440,9 @@ export async function createStage(root, model) {
   const bedPos = room.object('bed').getWorldPosition(new THREE.Vector3());
   const boardPos = room.board.mesh.position;
   const HOT = [
+    { id: 'journal', label: '観察ノート', objects: [room.object('journal_desk')], center: () => room.object('journal').getWorldPosition(new THREE.Vector3()), top: 0.4 },
+    { id: 'chips', label: 'チップ箱', objects: [room.object('chip_box')], center: () => room.object('chip_box').getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 0.15, 0.15)), top: 0.4 },
+    { id: 'memory', label: 'ことばのかご', objects: [room.object('basket')], center: () => above(P.basketTop, 0, -0.45, 0.4), top: 0.6 },
     { id: 'talk', label: '話しかける', objects: [actor.root], center: () => above(actor.root.position, 0, 0.8, 0), top: 1.2 },
     { id: 'listen', label: 'お出掛け', objects: [door, room.object('door_top')],
       center: () => door.localToWorld(new THREE.Vector3(0, 1.3, 0.6)), top: 1.5 },
@@ -473,7 +476,12 @@ export async function createStage(root, model) {
       const hit = raycaster.intersectObjects(hot.objects, true)[0];
       if (hit && (!best || hit.distance < best.distance)) best = { hot, distance: hit.distance };
     }
-    return best?.hot ?? null;
+    if (best) return best.hot;
+    // 小さな小物にも指で押せる余白を持たせる。
+    return HOT.filter(h => ['journal', 'chips', 'memory'].includes(h.id))
+      .map(h => ({ hot: h, p: room.screenPos(h.center()) }))
+      .map(v => ({ ...v, d: Math.hypot(v.p.x - ev.clientX, v.p.y - ev.clientY) }))
+      .filter(v => v.d < 24).sort((a, b) => a.d - b.d)[0]?.hot ?? null;
   }
   function hover(hot) {
     hovered = interactive && !mind.isOpen ? hot : null;
@@ -494,6 +502,7 @@ export async function createStage(root, model) {
     play, say, showIdle, syncMemory, goListen, speak, comeBack, toggleExplore,
     setPaused, stepOnce: release, npcColors: NPC_COLORS,
     // 部屋のものが押されたら fn(id) を呼ぶ（何もないところを押したら id は null）
+    triggerAction: trigger,
     onAction: (fn) => { onAction = fn; },
     setInteractive: (value) => { interactive = value; if (!value) hover(null); },
     // 押せるものの、画面上の位置（動作確認用）

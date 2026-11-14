@@ -421,6 +421,22 @@ def build_room():
     sphere('picture_sun', 0.13, mat('picture_sun', (0.95, 0.5, 0.35)), T(-W / 2 + 0.06, 2.4, -1.25),
            scale=(0.15, 1, 1))
 
+    # 観察ノートの机。部屋から直接開く小物。
+    desk = empty('journal_desk', T(-1.65, 0, 1.45))
+    box('desk_top', S(1.15, .1, .8), wood, T(0, .65, 0), parent=desk, bevel=.035)
+    for i, (x, z) in enumerate(((-.46, -.29), (.46, -.29), (-.46, .29), (.46, .29))):
+        box(f'desk_leg{i}', S(.09, .6, .09), wood_dark, T(x, .3, z), parent=desk)
+    journal = empty('journal', T(0, .73, .04), parent=desk)
+    box('journal_cover', S(.77, .045, .54), books[2], T(0, 0, 0), parent=journal, bevel=.018)
+    for i, x in enumerate((-.18, .18)):
+        box(f'journal_page{i}', S(.35, .035, .48), white, T(x, .035, 0), parent=journal, bevel=.008)
+    box('journal_ribbon', S(.035, .012, .59), books[0], T(.12, .06, .035), parent=journal, bevel=.003)
+    chipbox = empty('chip_box', T(.8, 1.48, -2.55))
+    box('chip_box_base', S(.68, .25, .48), wood, T(0, .125, 0), parent=chipbox, bevel=.025)
+    box('chip_box_lid', S(.72, .065, .52), wood_dark, T(0, .28, 0), parent=chipbox, bevel=.018)
+    box('chip_box_clasp', S(.11, .12, .025), books[1], T(0, .23, .255), parent=chipbox, bevel=.01)
+    box('chip_box_emblem', S(.21, .025, .21), books[2], T(0, .325, 0), parent=chipbox, bevel=.02)
+
     house_names = {o.name for o in bpy.data.objects}
 
     # ---- 外の広場（盗み聞きの場所）。家の左どなり ----

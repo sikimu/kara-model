@@ -6,6 +6,7 @@ import { createModel } from './model/model.js';
 import { createStage } from './ui/stage.js';
 import { createTalk } from './ui/talk.js';
 import { createListen } from './ui/listen.js';
+import { createJournal, createMemory, createChips } from './ui/items.js';
 import { createSleep } from './ui/sleep.js';
 import { ICONS, iconButton } from './ui/icons.js';
 import { save, load, clear } from './save.js';
@@ -31,6 +32,9 @@ const PARTS = [
   { id: 'talk', create: createTalk },
   { id: 'listen', create: createListen },
   { id: 'sleep', create: createSleep },
+  { id: 'journal', create: createJournal },
+  { id: 'memory', create: createMemory },
+  { id: 'chips', create: createChips },
 ];
 
 const app = document.getElementById('app');
@@ -213,55 +217,20 @@ let exploring = false;
 let openPart = null;   // 開いている入力（'talk' | 'listen' | 'sleep' | null）
 const partRoots = {};
 const touchAction = matchMedia('(pointer: coarse)').matches ? 'タップ' : 'クリック';
-const lessons = [
-  ['talk', 'ねえ、コト', `部屋のまんなかにいるコトを${touchAction}。入力欄に好きなことばを書いて、送るボタンを押してみよう。`, 'コト'],
-  ['listen', 'ドアの向こうへ', `左のドアを${touchAction}。話す人のことばを入れて「お出掛けする」を押そう。本のボタンからお手本も選べるよ。`, 'ドア'],
-  ['sleep', 'ひとやすみ', `右のベッドを${touchAction}して「おやすみ」を押そう。コトと、ちょっとひと休み。`, 'ベッド'],
-  ['talk', 'もう一度、おしゃべり', `起きたコトを${touchAction}。いま話したいことばを、もう一度送ってみよう。`, 'コト'],
-];
-const reflections = {
-  'first-talk': '何も話してくれませんでしたね。コトは、まだことばを覚えていないようです。',
-  heard: 'まちで聞いたことばが、かごに入りましたね。ここには、聞いたことを少しのあいだ置いておけます。',
-  slept: '夢の中で、聞いたことばを思い出していましたね。コトは眠っているあいだに、ことばのつながりを覚えるようです。',
-  replied: '今度は、ことばが返ってきましたね。聞いて、眠って、少しずつ覚えていく。ここからは、好きなことばでコトと過ごしてみましょう。',
-  quiet: '今回は、ことばが返ってきませんでしたね。どんな返事になるかは、覚えたつながりや選び方でも変わります。ここからは自由に試してみましょう。',
-};
-const guide = document.createElement('aside');
-guide.className = 'tutorial';
-guide.setAttribute('aria-live', 'polite');
-const guideTitle = document.createElement('strong');
-const guideText = document.createElement('p');
-const guideButton = document.createElement('button');
-guideButton.type = 'button';
-const guideTarget = document.createElement('span');
-guideTarget.className = 'tutorial-target';
-guideTarget.setAttribute('aria-hidden', 'true');
-const guideTargetLabel = document.createElement('span');
-guideTarget.append(guideTargetLabel);
-guideButton.addEventListener('click', () => {
-  if (model.tutorial.reflection) {
-    model.tutorial.reflection = null;
-    save(model);
-    refresh();
-    return;
-  }
-  placeGuideTarget();
-  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    guideTarget.animate([{ opacity: 0.25 }, { opacity: 1 }], { duration: 450, iterations: 3 });
-  }
-});
-guide.append(guideTitle, guideText, guideButton);
-app.append(guide, guideTarget);
+const lessons = [['talk', 'コト', 'talk'], ['listen', 'ドア', 'walk'], ['sleep', 'ベッド', 'sleep'], ['talk', 'コト', 'talk']];
+const guideTarget = iconButton('talk', 'コト', 'tutorial-target');
+app.append(guideTarget);
+guideTarget.addEventListener('click', () => mind.triggerAction(model.tutorial.reflection ? 'journal' : lessons[model.tutorial.step]?.[0]));
 function placeGuideTarget() {
-  const lesson = lessons[model.tutorial.step];
-  guideTarget.hidden = guide.hidden || !lesson || !!model.tutorial.reflection;
+  const lesson = model.tutorial.reflection ? ['journal', '観察ノート', 'book'] : lessons[model.tutorial.step];
+  guideTarget.hidden = !started || busy || openPart !== null || !lesson;
   if (guideTarget.hidden) return;
   const point = mind.hotPoint(lesson[0]);
   guideTarget.style.left = `${point.x}px`;
   guideTarget.style.top = `${point.y}px`;
-  guideTarget.classList.toggle('near-left', point.x < 100);
-  guideTarget.classList.toggle('near-right', point.x > app.clientWidth - 100);
-  guideTargetLabel.textContent = `${lesson[3]}を${touchAction}`;
+  guideTarget.innerHTML = `${ICONS[lesson[2]]}<span>${touchAction}</span>`;
+  guideTarget.setAttribute('aria-label', `${lesson[1]}を${touchAction}`);
+  guideTarget.title = `${lesson[1]}を${touchAction}`;
 }
 window.addEventListener('resize', () => requestAnimationFrame(placeGuideTarget));
 function complete(action, reply) {
@@ -278,52 +247,8 @@ function complete(action, reply) {
     openPart = null;
   }
 }
-const chipGroup = document.createElement('div');
-chipGroup.className = 'settings-group chip-settings';
-const chipTitle = document.createElement('h3');
-chipTitle.textContent = '選び方チップ';
-const chipSelect = document.createElement('select');
-chipSelect.setAttribute('aria-label', '選び方チップ');
-for (const chip of model.samplers) chipSelect.add(new Option(chip.name, chip.id));
-chipSelect.value = model.chips.sampler.id;
-const chipHint = document.createElement('p');
-const temperature = range(0.25, 2, 0.25, model.options.temperature, updateChip);
-temperature.setAttribute('aria-label', '温度');
-const temperatureLabel = document.createElement('label');
-const temperatureValue = document.createElement('span');
-temperatureLabel.append(temperatureValue, temperature);
-function updateChip() {
-  if (busy) return;
-  model.setSampler(chipSelect.value, Number(temperature.value));
-  syncChip();
-  save(model);
-}
-function syncChip() {
-  chipHint.textContent = model.chips.sampler.description;
-  temperatureLabel.hidden = model.chips.sampler.id !== 'sampler-temperature';
-  temperatureValue.textContent = `温度 ${model.options.temperature.toFixed(2)}（低い ← → 高い）`;
-}
-chipSelect.addEventListener('change', updateChip);
-chipGroup.append(chipTitle, chipSelect, chipHint, temperatureLabel);
-settings.insertBefore(chipGroup, resetButton);
-syncChip();
-
 function refresh() {
-  const lesson = lessons[model.tutorial.step];
-  const reflection = reflections[model.tutorial.reflection];
-  guide.hidden = !started || busy || (!lesson && !reflection) || openPart !== null;
-  if (reflection) {
-    guideTitle.textContent = 'やってみて、わかったこと';
-    guideText.textContent = reflection;
-    guideButton.textContent = lesson ? 'つぎへ' : '自由に遊ぶ';
-  } else if (lesson) {
-    guideTitle.textContent = `はじめの一日 · ${model.tutorial.step + 1} / 4　${lesson[1]}`;
-    guideText.textContent = lesson[2];
-    guideButton.textContent = `${lesson[3]}の場所を見る`;
-  }
   placeGuideTarget();
-  chipSelect.disabled = busy;
-  temperature.disabled = busy;
   app.dataset.busy = String(busy);
   mind.setInteractive(started && !busy);
   dock.hidden = busy || openPart === null;
@@ -388,7 +313,9 @@ async function toggleExplore() {
 }
 homeButton.addEventListener('click', toggleExplore);
 
-const ctx = { model, mind, show, run, getStep, complete, close: () => setPart(null) };
+const ctx = { model, mind, show, run, getStep, complete, close: () => setPart(null),
+  acknowledge: () => { model.tutorial.reflection = null; save(model); refresh(); },
+  changed: () => save(model) };
 for (const part of PARTS) {
   const root = document.createElement('section');
   root.className = `part ${part.id}`;
@@ -425,7 +352,7 @@ startButton.addEventListener('click', () => {
   hud.inert = false;
   logo.hidden = false;
   refresh();
-  if (model.tutorial.step < 4) guideButton.focus({ preventScroll: true });
+  if (!guideTarget.hidden) guideTarget.focus({ preventScroll: true });
   else settingsButton.focus({ preventScroll: true });
 });
 refresh();

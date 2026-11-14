@@ -152,10 +152,9 @@ try {
   expect('開始ボタンで部屋に入れる', await evaluate(`document.querySelector('.title-screen').hidden`));
   expect('起動して操作できる', (await busy()) === false);
   expect('ゲームタイトルを表示する', await evaluate(`document.title.startsWith('からっぽのコト') && document.querySelector('.logo').textContent.includes('からっぽのコト')`));
-  expect('初日は会話から案内する', await evaluate(`kara.tutorial.step === 0 && !document.querySelector('.tutorial').hidden`));
-  expect('操作前は結果を明かさず、コトを押すよう案内する', await evaluate(`document.querySelector('.tutorial').textContent.includes('コトを${MOBILE ? 'タップ' : 'クリック'}') && !document.querySelector('.tutorial').textContent.includes('返事は') && !document.querySelector('.tutorial-target').hidden`));
-  await clickOn('.tutorial button');
-  expect('場所の案内ボタンは会話を開かず、実物を押す操作を促す', await evaluate(`document.querySelector('.dock').hidden`));
+  expect('初日は会話から案内する', await evaluate(`kara.tutorial.step === 0 && !document.querySelector('.tutorial-target').hidden`));
+  expect('操作前は結果を明かさず、コトを押すよう案内する', await evaluate(`document.querySelector('.tutorial-target').getAttribute('aria-label').includes('コトを${MOBILE ? 'タップ' : 'クリック'}') && !document.querySelector('.tutorial-target').getAttribute('aria-label').includes('返事は') && !document.querySelector('.tutorial-target').hidden`));
+  expect('常設の文章パネルを置かない', await evaluate(`!document.querySelector('.tutorial')`));
   await shot('1-home.png');
   await clickOn('.settings-button');
   expect('設定を開ける', await evaluate(`document.querySelector('.settings').open`));
@@ -176,13 +175,18 @@ try {
   await done();
   expect('空の状態では「……」を返す', (await evaluate(`document.querySelector('.log-line:last-child').textContent`)).includes('……'));
   expect('会話後はお出掛けを案内する', await evaluate(`kara.tutorial.step === 1`));
-  expect('無言を体験したあとで理由を説明する', await evaluate(`kara.tutorial.reflection === 'first-talk' && document.querySelector('.tutorial').textContent.includes('何も話してくれませんでしたね')`));
+  expect('無言を体験したあとで理由を説明する', await evaluate(`kara.tutorial.reflection === 'first-talk' && document.querySelector('.tutorial-target').getAttribute('aria-label').includes('観察ノート')`));
+  await action('journal');
+  expect('体験したページだけを開く', await evaluate(`document.querySelectorAll('.journal-tabs button:disabled').length === 3 && document.querySelector('.journal-note').textContent.includes('まだ、ことばを知らない')`));
   await shot('2-first-reflection.png');
+  await clickOn('.journal .item-close');
+  expect('閉じるだけでは未読を残す', await evaluate(`kara.tutorial.reflection === 'first-talk'`));
   await load();
   await clickOn('.title-start');
   expect('体験後の説明も再読み込みで失われない', await evaluate(`kara.tutorial.reflection === 'first-talk'`));
-  await clickOn('.tutorial button');
-  expect('説明を読んだあとドアを押す案内が出る', await evaluate(`!kara.tutorial.reflection && document.querySelector('.tutorial').textContent.includes('ドアを') && !document.querySelector('.tutorial-target').hidden`));
+  await action('journal');
+  await clickOn('.journal-finish');
+  expect('説明を読んだあとドアを押す案内が出る', await evaluate(`!kara.tutorial.reflection && document.querySelector('.tutorial-target').getAttribute('aria-label').includes('ドアを') && !document.querySelector('.tutorial-target').hidden`));
 
   // お出掛け（お手本を入れて、まちの ひろば へ）
   await action('listen');
@@ -208,7 +212,13 @@ try {
   expect('眠る前は集計表が変わらない', s.rows === 0);
   expect('お出掛け後は睡眠を案内する', await evaluate(`kara.tutorial.step === 2`));
   expect('お出掛け後にかごの意味を説明する', await evaluate(`kara.tutorial.reflection === 'heard'`));
-  await clickOn('.tutorial button');
+  await action('journal');
+  await clickOn('.journal-finish');
+
+  await action('memory');
+  expect('かごの紙に保存したことばを表示する', await evaluate(`[...document.querySelectorAll('.word-slip')].every((e, i) => e.textContent === kara.shortMemory[i]) && document.querySelectorAll('.word-slip').length === kara.shortMemory.length`));
+  await shot('3-memory.png');
+  await clickOn('.memory .item-close');
 
   // 睡眠（夢の中で学習）
   await action('sleep');
@@ -222,7 +232,8 @@ try {
   await shot('5-woke.png');
   expect('起床後は再度会話を案内する', await evaluate(`kara.tutorial.step === 3`));
   expect('睡眠後に学習を説明する', await evaluate(`kara.tutorial.reflection === 'slept'`));
-  await clickOn('.tutorial button');
+  await action('journal');
+  await clickOn('.journal-finish');
 
   // 会話（学習後）
   await action('talk');
@@ -233,8 +244,9 @@ try {
   const reply = await evaluate(`document.querySelector('.log-line:last-child').textContent`);
   expect('学習後は言葉を返す', !reply.includes('……'), reply);
   expect('最後の会話後に振り返りを表示する', await evaluate(`kara.tutorial.step === 4 && kara.tutorial.reflection === 'replied'`));
-  await clickOn('.tutorial button');
-  expect('振り返りを閉じると初日の案内が完了する', await evaluate(`document.querySelector('.tutorial').hidden && document.querySelector('.tutorial-target').hidden`));
+  await action('journal');
+  await clickOn('.journal-finish');
+  expect('振り返りを閉じると初日の案内が完了する', await evaluate(`document.querySelector('.tutorial-target').hidden && document.querySelector('.tutorial-target').hidden`));
   await shot('7-replied.png');
 
   // 頭の中を見る
@@ -280,12 +292,13 @@ try {
   await shot('11-pet.png');
   await sleep(1200);
 
-  // セーブ
-  await clickOn('.settings-button');
-  await evaluate(`(() => { const s = document.querySelector('.chip-settings select'); s.value = 'sampler-temperature'; s.dispatchEvent(new Event('change')); const t = document.querySelector('[aria-label="温度"]'); t.value = '0.5'; t.dispatchEvent(new Event('input')); })()`);
-  expect('設定で温度チップを付け替えられる', await evaluate(`kara.chips.sampler.id === 'sampler-temperature' && kara.options.temperature === 0.5`));
+  // 小物のチップ箱から交換して保存
+  await action('chips');
+  await clickOn('[data-chip="sampler-temperature"]');
+  await evaluate(`(() => { const t = document.querySelector('[aria-label="温度"]'); t.value = '0.5'; t.dispatchEvent(new Event('input')); })()`);
+  expect('木箱で温度チップを付け替えられる', await evaluate(`kara.chips.sampler.id === 'sampler-temperature' && kara.options.temperature === 0.5`));
   await shot('12-chips.png');
-  await clickOn('.settings-close');
+  await clickOn('.chips .item-close');
   await load();
   expect('保存後はタイトル画面につづきからを表示する', await evaluate(`!document.querySelector('.title-screen').hidden && document.querySelector('.title-start').textContent === 'つづきから'`));
   await shot('13-continue.png');

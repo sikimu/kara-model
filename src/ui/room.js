@@ -249,15 +249,15 @@ export async function createRoom(root) {
     if (ms > 0) {
       curtain.setAttribute('aria-hidden', 'false');
       curtain.classList.add('is-visible');
-      await wait(Math.max(ms, 500));
+      await wait(Math.min(ms, 250));
     }
     try {
       await fn();
-      if (ms > 0) await wait(Math.max(ms * 1.2, 1100));
+      if (ms > 0) await wait(Math.min(ms, 400));
     } finally {
       curtain.classList.remove('is-visible');
       curtain.setAttribute('aria-hidden', 'true');
-      if (ms > 0) await wait(500);
+      if (ms > 0) await wait(200);
     }
   }
 

@@ -826,6 +826,8 @@ def build_mind_space():
     cx, cz = r['roulette']
     cone('mind_roulette_rim', 1.52, 1.52, .12, edge, T(cx + .3, .79, cz + .5), segments=64)
     cone('mind_roulette_hub', .14, .12, .17, paper, T(cx + .3, .95, cz + .5))
+    for suffix, dims, pos in [('base', (.8, .08, .8), (1.95, .91, -.15)), ('left', (.06, .45, .8), (1.55, 1.12, -.15)), ('right', (.06, .45, .8), (2.35, 1.12, -.15)), ('back', (.8, .45, .06), (1.95, 1.12, -.55)), ('front', (.8, .45, .06), (1.95, 1.12, .25))]:
+        box('mind_lottery_box_' + suffix, S(*dims), edge, T(cx + pos[0], pos[1], cz + pos[2]), bevel=.025)
 
     # 原本の本棚。①〜⑥の部屋の左の壁ぎわに置き、three.js 側で押すと原本を開く
     cover_colors = [(.62, .36, .30), (.33, .50, .62), (.44, .58, .40), (.74, .58, .30), (.55, .44, .62), (.36, .55, .55)]

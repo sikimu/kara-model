@@ -205,6 +205,7 @@ export function createMindView(root, room, model, inspector) {
         delete canvas.dataset.carry;
         v.carrying = null;
         await gate();
+        if (stage.room !== 3) { v.fetching = { room: stage.room, k: 0 }; await animate(2, k => { v.fetching.k = k; }); v.fetching = null; }
         v.stages[i] = stage; v.operation = { index: i, k: 0, room: stage.room, layer: stage.layer };
         canvas.dataset.operation = String(stage.room);
         canvas.dataset.stage = String(i);
@@ -214,7 +215,7 @@ export function createMindView(root, room, model, inspector) {
         // 本を開いて写す／書き直す。2層め以降・2トークンめ以降は同じ作業なので早く進める
         const quick = quickTour || (stage.layer != null && stage.layer > 0);
         await animate((quickTour ? 1.5 : quick ? 3 : 5), k => { v.operation.k = k; });
-        if (v.mode === 'learn') { v.returning = { room: stage.room, k: 0 }; await animate((quickTour ? 1 : 2), k => { v.returning.k = k; }); v.returning = null; }
+        if (stage.room !== 3) { v.returning = { room: stage.room, k: 0 }; await animate((quickTour ? 1 : 2), k => { v.returning.k = k; }); v.returning = null; }
         v.completedStage = i;
         v.courier = { token: null, from: { lane: 'work', index: stage.room }, to: { lane: 'work', index: stage.room }, k: 1 };
         v.operation = null; delete canvas.dataset.operation; delete canvas.dataset.stage;
@@ -225,11 +226,13 @@ export function createMindView(root, room, model, inspector) {
     if (ev.type === 'register') {
       // 初見の文字: 文字の本に新しいページを足す（登録であって、学習ではない）
       v.newPages = [...(v.newPages ?? []), ...ev.tokens];
-      v.registering = { tokens: ev.tokens, k: 0 };
       await walkTo({ lane: 'work', index: 0 });
+      v.fetching = { room: 0, k: 0 }; await animate(2, k => { v.fetching.k = k; }); v.fetching = null;
+      v.registering = { tokens: ev.tokens, k: 0 };
       await hold({ title: `はじめて見る文字「${said(ev.tokens)}」`, body: `文字の本に「${said(ev.tokens)}」のページを足しました。ページの ${model.config.dim}個の数は、まだ小さなでたらめの値です。意味を覚えたのではなく、計算に使う場所を用意しただけです。`, detail: '文字の登録と、お手本から数を学習することは別の作業です。文字は、まとまりの登録数とは別の枠に入ります。' });
       await animate(3, k => { v.registering.k = k; });
       v.registering = null;
+      v.returning = { room: 0, k: 0 }; await animate(2, k => { v.returning.k = k; }); v.returning = null;
     }
     if (ev.type === 'tokenize') {
       v.heard = []; v.source = []; v.sourceAt = 0;
@@ -268,7 +271,9 @@ export function createMindView(root, room, model, inspector) {
     if (ev.type === 'probs') {
       v.rows = []; v.visibleRows = []; v.picked = null;
       const rows = [...ev.candidates].sort((a, b) => b.p - a.p).slice(0, 5);
-      await carryMany(rows.map(r => r.token), rows.map((_, slot) => ({ lane: 'work', index: 5, slot, count: rows.length })), rows.map((_, index) => ({ lane: 'candidates', index })));
+      v.carrying = 'binder';
+      await walkTo({ lane: 'box' });
+      v.carrying = null;
       v.visibleRows = [...rows]; v.rows = ev.candidates; v.share = 0;
       canvas.dataset.share = 'growing';
       await animate(5, k => { v.share = k; });
@@ -283,17 +288,10 @@ export function createMindView(root, room, model, inspector) {
       v.picked = ev.token;
       await animate(2);
       await hold();
-      if (!v.visibleRows.some(r => r.token === ev.token)) {
-        const selected = v.rows.find(r => r.token === ev.token);
-        await carry(ev.token, { lane: 'roulette' }, { lane: 'candidates', index: 4 });
-        v.visibleRows[4] = selected; v.workToken = null;
-      }
       v.picked = ev.token;
     }
     if (ev.type === 'emit') {
-      const rows = v.visibleRows, selected = v.rows.find(r => r.token === ev.token);
-      if (selected && !rows.includes(selected)) rows[rows.length - 1] = selected;
-      await carry(ev.token, { lane: 'candidates', index: Math.max(0, rows.indexOf(selected)), count: rows.length }, { lane: 'output', index: v.out.length });
+      await carry(ev.token, { lane: 'roulette' }, { lane: 'output', index: v.out.length });
       v.out.push(ev.token);
       await hold({ title: `返事に「${tokenLabel(ev.token)}」を 足した`, body: `ルーレットで選ばれた札を、返事の部屋に並べました。いまの返事は「${v.out.map(tokenLabel).join('')}」です。「おしまい」が選ばれるまで、文脈に足して次を考える、をくり返します。`, detail: `返事 ${v.out.length}まいめ` });
     }

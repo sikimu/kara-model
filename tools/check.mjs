@@ -295,6 +295,7 @@ try {
     }
     console.log(`    描画の質: ${await evaluate(`document.querySelector('.mind-view').dataset.quality ?? 'full'`)}`);
     expect('コトがデータを持ち上げて扱う時間が見える', holding);
+    expect('棚と机で原本が重複せず、閉じた本が残らない', await evaluate(`document.querySelector('.mind-view').dataset.bookDuplicate === 'false' && document.querySelector('.mind-view').dataset.deskBooks === '0'`));
     await shot('18-work-hand.png');
     // ②〜⑤は層の数だけ巡回し、最後に⑥へ着く
     let toured = false, shotRooms = new Set();

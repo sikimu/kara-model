@@ -5,8 +5,7 @@
 import { FONT, roundRect } from './room.js';
 import { sound } from './sound.js';
 import { BOS, EOS, MAX_OUTPUT, MEMORY_CAPACITY, memoryText } from '../model/model.js';
-import { drawNeural } from './neural-view.js';
-import { createMindCourier } from './mind-courier.js';
+import { createNeuralView } from './neural-view.js';
 
 const SLOTS = [
   ['tokenizer', '切り方'],
@@ -31,10 +30,10 @@ const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const edgeKey = (a, b) => `${a}\u0000${b}`;
 
 export function createMindView(root, room, model) {
-  const courier = createMindCourier(room.character, room.courierBag);
   const canvas = document.createElement('canvas');
   canvas.className = 'mind-view';
   root.append(canvas);
+  const neuralView = createNeuralView(room, canvas);
   const g = canvas.getContext('2d');
   let W = 1;
   let H = 1;
@@ -43,13 +42,13 @@ export function createMindView(root, room, model) {
   const panelX = () => narrow() ? 12 : W * 0.62;
   function resize() {
     W = Math.max(1, root.clientWidth);
-    H = Math.max(W <= 640 ? 940 : 1, root.clientHeight);
+    H = Math.max(W <= 640 && model.chips.predictor.id !== 'predictor-transformer' ? 940 : 1, root.clientHeight);
     const dpr = Math.min(window.devicePixelRatio, 2);
     canvas.width = W * dpr;
     canvas.height = H * dpr;
     canvas.style.width = `${W}px`;
     canvas.style.height = `${H}px`;
-    if (canvas.style.pointerEvents === 'auto') root.style.overflowY = narrow() ? 'auto' : 'hidden';
+    if (canvas.style.pointerEvents === 'auto') root.style.overflowY = narrow() && model.chips.predictor.id !== 'predictor-transformer' ? 'auto' : 'hidden';
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
   new ResizeObserver(resize).observe(root);
@@ -709,7 +708,7 @@ export function createMindView(root, room, model) {
     g.clearRect(0, 0, W, H);
     if (reveal <= 0) return;
     simulate();
-    if (model.chips.predictor.id === 'predictor-transformer') drawNeural(g, v, model, W, H, courier, clock);
+    if (model.chips.predictor.id === 'predictor-transformer') neuralView.draw(g, v, W, H, clock);
     else drawScene();
     drawParticles();
     if (v.flight) {
@@ -775,16 +774,20 @@ export function createMindView(root, room, model) {
   async function open(mode, from, ms, memory = model.shortMemory) {
     root.classList.add('mind-active');
     v = fresh(mode);
+    resize();
+    if (model.chips.predictor.id === 'predictor-transformer') neuralView.open();
+    else neuralView.close();
     if (model.chips.predictor.id === 'predictor-transformer') {
       const net = model.network.snapshot();
       v.matrices = [net.weights.q.slice(0, 144), net.weights.f1.slice(0, 144), net.weights.out.slice(-144)];
+      if (mode === 'explore') v.stages = [['embed', '埋め込み'], ['q', '注意 Q'], ['v', '注意 V'], ['o', '注意の投影'], ['f1', 'MLP'], ['out', '出力']].map(([key, label]) => ({ label, values: net.weights[key].slice(0, 24) }));
     }
     avatar.visible = false;
     avatar.hop = 0;
     origin = from ?? { x: W / 2, y: H / 2 };
     mem = memory.map((entry) => ({ text: memoryText(entry), active: false }));
     canvas.style.pointerEvents = 'auto';
-    root.style.overflowY = narrow() ? 'auto' : 'hidden';
+    root.style.overflowY = narrow() && model.chips.predictor.id !== 'predictor-transformer' ? 'auto' : 'hidden';
     sfx('moya', ms);
     await room.tween(ms, (k) => { reveal = k; });
     reveal = 1;
@@ -799,11 +802,12 @@ export function createMindView(root, room, model) {
     await room.tween(ms, (k) => { reveal = 1 - k; });
     reveal = 0;
     root.classList.remove('mind-active');
+    neuralView.close();
   }
 
   // のぞいているとき: 文字をクリックすると、その行を出す
   canvas.addEventListener('click', (ev) => {
-    if (v.mode !== 'explore' || reveal < 1) return;
+    if (model.chips.predictor.id === 'predictor-transformer' || v.mode !== 'explore' || reveal < 1) return;
     const box = canvas.getBoundingClientRect();
     const x = ev.clientX - box.left;
     const y = ev.clientY - box.top;
@@ -1002,6 +1006,10 @@ export function createMindView(root, room, model) {
       const carry = async (token, from, to) => {
         if (carried) await gate();
         carried = true;
+        if (v.courier?.to && JSON.stringify(v.courier.to) !== JSON.stringify(from)) {
+          v.courier = { token: null, from: v.courier.to, to: from, k: 0 };
+          await animate(step * 2, k => { v.courier.k = k; });
+        }
         v.courier = { token, from, to, k: 0 };
         await animate(step * 3, k => {
           v.courier.k = k;
@@ -1010,41 +1018,82 @@ export function createMindView(root, room, model) {
         v.courier = { token: null, from: to, to, k: 1 };
         delete canvas.dataset.carry;
       };
-      if (ev.type === 'tokenize') {
-        v.heard = [];
-        for (const token of ev.tokens) {
-          await carry(token, { lane: 'entry' }, { lane: 'heard', index: Math.min(7, v.heard.length), count: Math.min(8, v.heard.length + 1) });
-          v.heard.push(token);
+      const operate = async (stages) => {
+        v.stages = []; v.completedStage = -1;
+        for (let i = 0; i < stages.length; i++) {
+          const from = v.courier?.to ?? { lane: 'work', index: 0 };
+          v.packet = v.mode === 'infer' && i > 0 ? stages[i - 1].values : null;
+          await carry(null, from, { lane: 'work', index: i });
+          v.packet = null;
+          await gate();
+          v.stages[i] = stages[i]; v.operation = { index: i, k: 0 };
+          canvas.dataset.operation = String(i);
+          await animate(step * 3, k => { v.operation.k = k; });
+          v.completedStage = i;
         }
+        v.operation = null; delete canvas.dataset.operation;
+      };
+      if (ev.type === 'tokenize') {
+        v.heard = [...ev.tokens]; v.source = [...ev.tokens]; v.sourceAt = 0;
       }
       if (ev.type === 'attention') {
-        v.attention = ev;
-        const clues = ev.weights.map((weight, index) => ({ weight, index })).sort((a, b) => b.weight - a.weight).slice(0, 2);
-        for (const { index } of clues) {
+        v.attention = ev; v.source = ev.tokens; v.contextCards = []; v.rows = []; v.visibleRows = []; v.workToken = null;
+        for (let index = 0; index < ev.tokens.length; index++) {
+          v.sourceAt = index;
+          await carry(ev.tokens[index], { lane: 'heard', index: Math.min(index, 7) }, { lane: 'attention', index });
+          v.contextCards.push(ev.tokens[index]);
+        }
+        for (let index = 0; index < ev.tokens.length; index++) {
           v.attentionFocus = index;
-          await carry(ev.tokens[index], { lane: 'attention', index }, { lane: 'work' });
+          await carry(ev.tokens[index], { lane: 'attention', index }, { lane: 'work', index: 0 });
+          v.workToken = ev.tokens[index]; v.workAt = 0;
         }
         v.attentionFocus = null;
+        await operate(ev.stages ?? []);
       }
-      if (ev.type === 'probs') { v.rows = ev.candidates; v.picked = null; }
+      if (ev.type === 'probs') {
+        v.rows = []; v.visibleRows = []; v.picked = null;
+        const rows = [...ev.candidates].sort((a, b) => b.p - a.p).slice(0, 5);
+        for (let index = 0; index < rows.length; index++) {
+          v.workToken = rows[index].token; v.workAt = 5;
+          await carry(rows[index].token, { lane: 'work', index: 5 }, { lane: 'candidates', index });
+          v.rows.push(rows[index]); v.visibleRows.push(rows[index]); v.workToken = null;
+        }
+        v.rows = ev.candidates;
+      }
       if (ev.type === 'pick') {
+        if (!v.visibleRows.some(r => r.token === ev.token)) {
+          const selected = v.rows.find(r => r.token === ev.token);
+          v.workToken = ev.token; v.workAt = 5;
+          await carry(ev.token, { lane: 'work', index: 5 }, { lane: 'candidates', index: 4 });
+          v.visibleRows[4] = selected; v.workToken = null;
+        }
         await animate(step * 2, k => { v.rollIndex = Math.floor(k * 15) % Math.min(5, v.rows.length); });
         v.rollIndex = null; v.picked = ev.token;
       }
       if (ev.type === 'emit') {
-        const rows = [...v.rows].sort((a, b) => b.p - a.p).slice(0, 5);
+        const rows = v.visibleRows;
         const selected = v.rows.find(r => r.token === ev.token);
         if (selected && !rows.includes(selected)) rows[rows.length - 1] = selected;
         await carry(ev.token, { lane: 'candidates', index: Math.max(0, rows.indexOf(selected)), count: rows.length }, { lane: 'output', index: v.out.length });
         v.out.push(ev.token);
       }
       if (ev.type === 'end') v.endText = END_TEXT[ev.reason];
-      if (ev.type === 'gradient') { (v.losses ??= []).push(ev); v.matrices = ev.matrices; }
+      if (ev.type === 'gradient') {
+        if (v.contextCards?.length) {
+          const index = Math.max(0, v.contextCards.findLastIndex(token => !token.startsWith('<')));
+          await carry(v.contextCards[index], { lane: 'attention', index }, { lane: 'work', index: 0 });
+          v.workToken = v.contextCards[index]; v.workAt = 0;
+        }
+        await operate(ev.changes ?? []);
+        (v.losses ??= []).push(ev); v.matrices = ev.matrices;
+      }
       if (ev.type === 'replay') {
-        v.seq = ev.tokens;
+        v.seq = ev.tokens; v.source = ev.tokens; v.contextCards = []; v.workToken = null;
         for (let i = 0; i < ev.tokens.length; i++) {
-          v.seqAt = i;
-          await carry(ev.tokens[i], { lane: 'heard', index: Math.min(i, 7), count: Math.min(8, ev.tokens.length) }, { lane: 'work' });
+          v.seqAt = i; v.sourceAt = i;
+          await carry(ev.tokens[i], { lane: 'heard', index: Math.min(i, 7) }, { lane: 'attention', index: i % 24 });
+          v.contextCards[i % 24] = ev.tokens[i];
         }
       }
       await animate(step * (ev.type === 'gradient' ? 2 : .8));

@@ -30,6 +30,7 @@ export function createActor(room) {
     lieDown,
     getUp,
     setGrowth,
+    setIdleWalk: (value) => { walking = value; },
   };
 
   let walking = 0; // 歩きの進み具合（足を動かす用）。歩いていないときは 0

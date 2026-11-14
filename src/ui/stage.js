@@ -488,6 +488,22 @@ export async function createStage(root, model) {
   root.append(tip);
   let onAction = () => {};
   let interactive = false;
+  // Idle strolling is frame-driven, so an action can take control immediately.
+  let idleTime = 0, idleFrom = null, idleTo = null, idleLeg = 0, idleLast = 0;
+  const stroll = [new THREE.Vector3(-.9, 0, .8), new THREE.Vector3(.4, 0, -.7), new THREE.Vector3(1.1, 0, .5), P.home];
+  room.onFrame(t => {
+    const dt = idleLast ? Math.min(1, t - idleLast) : 0; idleLast = t;
+    const allowed = interactive && !mind.isOpen && !petting && !actor.lying && !root.parentElement.querySelector('.dock:not([hidden]), .settings[open]');
+    if (!allowed) { idleTime = 0; if (idleFrom) actor.setIdleWalk(0); idleFrom = null; return; }
+    idleTime += dt;
+    if (idleTime < 7) return;
+    if (!idleFrom) { idleFrom = actor.root.position.clone(); idleTo = stroll[idleLeg++ % stroll.length]; }
+    const k = Math.min(1, (idleTime - 7) / 5);
+    actor.root.position.lerpVectors(idleFrom, idleTo, k);
+    actor.root.rotation.y = Math.atan2(idleTo.x - idleFrom.x, idleTo.z - idleFrom.z);
+    actor.setIdleWalk(k * 4);
+    if (k >= 1) { idleTime = 0; idleFrom = null; actor.setIdleWalk(0); }
+  });
   let hovered = null;
   function trigger(id) {
     if (!interactive || mind.isOpen) return;

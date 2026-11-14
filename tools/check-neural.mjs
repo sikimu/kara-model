@@ -15,9 +15,17 @@ for (const [key, values] of Object.entries(analytic.grad)) {
   }
 }
 net.restore(baseline);
+const inspection = net.inspect(['<bos>', 'あ']);
+const forward = net.forward(net.encode(['<bos>', 'あ']));
+assert.deepEqual(inspection.weights, forward.attention);
+assert.deepEqual(inspection.stages.map(s => s.values), [forward.xs[forward.last], forward.q, forward.mix, forward.residual, forward.hidden, forward.final]);
+assert.deepEqual(net.inspect(['未登録の入力']).tokens, ['未登録の入力'], 'display must retain the received token');
+assert.deepEqual(net.inspect(['未登録の入力']).encoded, ['<unk>']);
 const tail = Array(24).fill(ids[2]);
 assert.deepEqual(net.forward([ids[0], ...tail]).probs, net.forward([ids[3], ...tail]).probs, 'tokens outside the context window must not leak');
 const history = net.train([['<bos>', '<user>', 'あ', '<turn>', '<assistant>', 'い', '<turn>', '<eos>']], 80);
+assert.deepEqual(history[0].changes[0].before, baseline.weights.embed.slice(0, 24));
+assert.deepEqual(history.at(-1).changes[0].values, net.snapshot().weights.embed.slice(0, 24));
 assert.ok(history.at(-1).loss < history[0].loss * .7, 'cross entropy must decrease');
 const a = net.predict(['<bos>', '<user>', 'あ', '<turn>', '<assistant>']);
 const b = net.predict(['<bos>', '<user>', 'い', '<turn>', '<assistant>']);

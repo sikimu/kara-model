@@ -181,6 +181,13 @@ try {
       await sleep(100);
     }
     await shot('17-mind-attention.png');
+    let operated = false;
+    for (let i = 0; i < 900; i++) {
+      if (await evaluate(`document.querySelector('.mind-view').dataset.operation === '5'`)) { operated = true; break; }
+      await sleep(100);
+    }
+    expect('推論の実ベクトルを6か所の作業台で再生する', operated);
+    await shot('18-mind-operation.png');
     await clickOn('.skip-button'); await done();
   } else if (process.argv.includes('--sleep-preview')) {
     await evaluate(`(() => { kara.hear('おやすみ'); const slider = document.querySelector('.speed-slider'); slider.value = '0'; slider.dispatchEvent(new Event('input')); })()`);
@@ -192,8 +199,17 @@ try {
     await done();
     expect('ゆっくりの入眠から飛ばして起床できる', await evaluate(`kara.stats.sleeps === 1 && !document.querySelector('.skip-box').checked && JSON.parse(localStorage.getItem('kara-model-ui')).speedIndex === 0`));
   } else if (process.argv.includes('--appearance')) {
+    const beforeStroll = await evaluate(`karaPoint('talk')`);
+    await sleep(10000);
+    const afterStroll = await evaluate(`karaPoint('talk')`);
+    expect('待機中にコトが家を散歩する', Math.hypot(afterStroll.x - beforeStroll.x, afterStroll.y - beforeStroll.y) > 5);
+    await shot('1-strolling.png');
     await action('talk');
-    await sleep(400);
+    await sleep(1400);
+    const stopped = await evaluate(`karaPoint('talk')`);
+    await sleep(2500);
+    const stillStopped = await evaluate(`karaPoint('talk')`);
+    expect('入力を開くと散歩が止まる', Math.hypot(stopped.x - stillStopped.x, stopped.y - stillStopped.y) < 2);
     await shot('1-character.png');
   } else {
   // 会話（空の状態）
@@ -256,6 +272,16 @@ try {
   await evaluate(`document.querySelector('.sleep-button').click()`);
   await sleep(SLOW ? 9000 : 4500);
   await shot('4-dream.png');
+  if (!SLOW) {
+    let operated = false;
+    for (let i = 0; i < 600; i++) {
+      if (await evaluate(`document.querySelector('.mind-view').dataset.operation === '5'`)) { operated = true; break; }
+      await sleep(150);
+    }
+    expect('コトが学習の6か所の作業台を順に動かす', operated);
+    await shot('4-dream-operation.png');
+    await clickOn('.skip-button');
+  }
   await done();
   s = await state();
   expect('眠るとニューラルネットが学習し、短期記憶が空になる', s.updates > 0 && s.mem.length === 0 && s.sleeps === 1, `更新 ${s.updates}`);
@@ -270,6 +296,7 @@ try {
   await evaluate(`(() => { const i = document.querySelector('.talk-form input'); i.value = 'こんにちは'; document.querySelector('.talk-form').requestSubmit(); })()`);
   await sleep(SLOW ? 6000 : 3000);
   await shot('6-infer.png');
+  if (!SLOW) await clickOn('.skip-button');
   await done();
   const reply = await evaluate(`document.querySelector('.log-line:last-child').textContent`);
   expect('学習後の返事を表示する', reply.length > 0, reply);
@@ -284,11 +311,24 @@ try {
   await sleep(2000);
   await shot('8-explore.png');
   if (MOBILE) {
-    await evaluate(`document.querySelector('.stage3d').scrollTop = 1000`);
-    await sleep(300);
-    await shot('8-explore-bottom.png');
-    expect('頭の中を縦にスクロールできる', await evaluate(`document.querySelector('.stage3d').scrollTop > 0`));
+    expect('3Dの頭の中が画面の高さに収まる', await evaluate(`document.querySelector('.mind-view').clientHeight === document.querySelector('.stage3d').clientHeight`));
   }
+  await clickOn('.mind-camera button:nth-child(2)');
+  expect('全景へ切り替えて自由に見渡せる', await evaluate(`document.querySelector('.mind-camera button').getAttribute('aria-pressed') === 'false'`));
+  await shot('8-mind-overview.png');
+  if (MOBILE) {
+    await send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 150, y: 400 }] });
+    await send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 230, y: 440 }] });
+    await send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  } else {
+    await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: 600, y: 400, button: 'left', clickCount: 1 });
+    await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 800, y: 480, button: 'left', buttons: 1 });
+    await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: 800, y: 480, button: 'left', clickCount: 1 });
+    await send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: 800, y: 450, deltaX: 0, deltaY: -300 });
+  }
+  await shot('8-mind-orbit.png');
+  await clickOn('.mind-camera button');
+  expect('自由視点からコト追従に戻せる', await evaluate(`document.querySelector('.mind-camera button').getAttribute('aria-pressed') === 'true'`));
   await clickOn('.home-button');
   await sleep(1200);
   expect('頭の中から戻ると操作できる', (await busy()) === false);

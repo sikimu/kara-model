@@ -110,6 +110,7 @@ export async function createRoom(root) {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setClearColor(0x000000, 0);
   renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   root.append(renderer.domElement);
 
   const scene = new THREE.Scene();
@@ -161,8 +162,8 @@ export async function createRoom(root) {
   // カメラの構図。house: 家だけ、plaza: まちの ひろば。tall は縦長の画面（スマホ）のときの構図
   const SHOTS = {
     house: {
-      wide: { target: new THREE.Vector3(0, 1.75, 0.1), halfW: 4.3, halfH: 4.0 },
-      tall: { target: new THREE.Vector3(0, 1.75, 0.1), halfW: 3.75, halfH: 4.0 },
+      wide: { target: new THREE.Vector3(0, 1.75, 0.1), halfW: 4.8, halfH: 4.0 },
+      tall: { target: new THREE.Vector3(0, 1.75, 0.1), halfW: 4.35, halfH: 4.0 },
     },
     plaza: {
       wide: { target: new THREE.Vector3(-4.6, 1.3, -0.3), halfW: 5.6, halfH: 4.3 },
@@ -283,7 +284,7 @@ export async function createRoom(root) {
       }
     }
     for (const fn of frameHandlers) fn(now / 1000);
-    renderer.render(scene, camera);
+    if (!root.classList.contains('mind-active')) renderer.render(scene, camera);
   });
 
   setScene('house');

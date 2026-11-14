@@ -71,6 +71,8 @@ export function createNeural(seed = 173) {
     const encoded = sequences.map(s => encode(s, true));
     const history = [];
     for (let epoch = 0; epoch < epochs; epoch++) {
+      const groups = [['embed', '埋め込み'], ['q', '注意 Q'], ['v', '注意 V'], ['o', '注意の投影'], ['f1', 'MLP'], ['out', '出力']];
+      const before = groups.map(([key]) => weights[key].slice(0, 24));
       let total = 0, count = 0, normTotal = 0;
       for (const ids of encoded) for (let at = 1; at < ids.length; at++) {
         const { grad, loss } = gradients(ids.slice(Math.max(0, at - WINDOW), at), ids[at]);
@@ -81,6 +83,7 @@ export function createNeural(seed = 173) {
       }
       lastLoss = count ? total / count : null;
       history.push({ epoch: epoch + 1, loss: lastLoss, gradientNorm: count ? normTotal / count : 0, updates, targets: count,
+        changes: groups.map(([key, label], i) => ({ label, before: before[i], values: weights[key].slice(0, 24) })),
         matrices: [weights.q.slice(0, 144), weights.f1.slice(0, 144), weights.out.slice(-144)] });
     }
     learned ||= encoded.some(s => s.length > 1);
@@ -103,6 +106,17 @@ export function createNeural(seed = 173) {
     vocab = [...data.vocab]; weights = structuredClone(data.weights); updates = data.updates ?? 0; lastLoss = data.lastLoss; learned = !!data.learned; state = data.state >>> 0; return true;
   }
   return { encode, predict, train, snapshot, restore, gradients, forward,
-    inspect: tokens => { const ids = encode(tokens).slice(-WINDOW); return { tokens: ids.map(i => vocab[i]), weights: forward(ids).attention }; },
+    inspect: tokens => {
+      const ids = encode(tokens).slice(-WINDOW), c = forward(ids);
+      return { tokens: tokens.slice(-WINDOW), encoded: ids.map(i => vocab[i]), weights: c.attention,
+        stages: [
+          { label: '埋め込み + 位置', values: c.xs[c.last] },
+          { label: 'RMSNorm → Q・K・V', values: c.q },
+          { label: '注意の重みで合成', values: c.mix },
+          { label: '投影 + 残差', values: c.residual },
+          { label: 'RMSNorm → MLP・GELU', values: c.hidden },
+          { label: 'MLP + 残差 → 出力', values: c.final },
+        ] };
+    },
     get updates() { return updates; }, get lastLoss() { return lastLoss; } };
 }

@@ -482,3 +482,10 @@ button.person-icon:hover { background: #f0e4cb; }
 .mind-active .caption { visibility: hidden; }
 @media (max-width: 640px) { .title-copy { width: 96%; left: 2%; top: 5%; }.title-entry { left: 50%; bottom: 7%; }.title-start { min-width: 230px; }.tutorial-target { height: 42px; }.title-screen::after { background: linear-gradient(#fff7e622, transparent 65%, #fff7e655); } }
 @media (prefers-reduced-motion: reduce) { .title-art, .title-logo, .title-motes i, .tutorial-target { animation: none; } }
+
+.mind-camera { position: absolute; z-index: 12; left: 18px; top: 18px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; max-width: calc(100% - 110px); }
+.mind-camera[hidden] { display: none; }
+.mind-camera button { border: 1px solid #c2ba92; border-radius: 22px; padding: 9px 16px; background: #293f43ee; color: #fff0ce; cursor: pointer; }
+.mind-camera button[aria-pressed="true"] { background: #647b64; }
+.mind-camera span { color: #d4dfda; font-size: 12px; }
+@media (max-width: 640px) { .mind-camera { top: 75px; left: 10px; } .mind-camera span { display: none; } }

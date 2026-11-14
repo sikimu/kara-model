@@ -237,11 +237,14 @@ function placeGuideTarget() {
   const point = mind.hotPoint(lesson[0]);
   guideTarget.style.left = `${Math.max(90, Math.min(innerWidth - 90, point.x))}px`;
   guideTarget.style.top = `${Math.max(135, point.y - 86)}px`;
-  guideTarget.innerHTML = `${ICONS[lesson[2]]}<span>${lesson[1]}</span>`;
-  guideTarget.setAttribute('aria-label', lesson[1]);
-  guideTarget.title = lesson[1];
+  if (guideTarget.getAttribute('aria-label') !== lesson[1]) {
+    guideTarget.innerHTML = `${ICONS[lesson[2]]}<span>${lesson[1]}</span>`;
+    guideTarget.setAttribute('aria-label', lesson[1]);
+    guideTarget.title = lesson[1];
+  }
 }
 window.addEventListener('resize', () => requestAnimationFrame(placeGuideTarget));
+setInterval(placeGuideTarget, 100); // 散歩するコトにも操作目印がついていく。
 function complete(action, reply) {
   if (lessons[model.tutorial.step]?.[0] === action) {
     const step = model.tutorial.step;

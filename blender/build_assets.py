@@ -76,7 +76,7 @@ def _finish(name, bm, material, loc, parent, smooth):
     return ob
 
 
-def sphere(name, r, material, loc, scale=(1, 1, 1), parent=None, rot=(0, 0, 0), seg=32):
+def sphere(name, r, material, loc, scale=(1, 1, 1), parent=None, rot=(0, 0, 0), seg=48):
     bm = bmesh.new()
     bmesh.ops.create_uvsphere(bm, u_segments=seg, v_segments=seg // 2, radius=r)
     bmesh.ops.scale(bm, vec=scale, verts=bm.verts)
@@ -94,14 +94,17 @@ def box(name, size, material, loc, parent=None, bevel=0.03, rot=(0, 0, 0)):
     if bevel > 0:
         mod = ob.modifiers.new('bevel', 'BEVEL')
         mod.width = bevel
-        mod.segments = 2
+        mod.segments = 5
+        mod.harden_normals = True
+        normal = ob.modifiers.new('weighted_normals', 'WEIGHTED_NORMAL')
+        normal.keep_sharp = True
     return ob
 
 
 def cone(name, r1, r2, depth, material, loc, parent=None, rot=(0, 0, 0), caps=True):
     """Blender の Z 軸（three.js の上方向）に沿った円すい台。r1 が下、r2 が上"""
     bm = bmesh.new()
-    bmesh.ops.create_cone(bm, cap_ends=caps, cap_tris=False, segments=32,
+    bmesh.ops.create_cone(bm, cap_ends=caps, cap_tris=False, segments=64,
                           radius1=r1, radius2=r2, depth=depth)
     ob = _finish(name, bm, material, loc, parent, lambda p: len(p.vertices) == 4)
     ob.rotation_euler = rot
@@ -321,7 +324,7 @@ def build_room():
         (0.9, 0.5, 0.42), (0.95, 0.78, 0.4), (0.55, 0.75, 0.6),
         (0.5, 0.68, 0.88), (0.75, 0.6, 0.85), (0.95, 0.65, 0.75)])]
 
-    W, D, H = 5.6, 6.4, 4.2  # 家の幅、奥行き、壁の高さ
+    W, D, H = 7.0, 6.4, 4.2  # 歩ける中央の床を広げる。家具の大きさは維持。
 
     # ---- 家 ----
     box('floor', S(W, 0.2, D), wood, T(0, -0.1, 0), bevel=0)
@@ -378,7 +381,7 @@ def build_room():
     empty('board_face', T(0, 2.85, -D / 2 + 0.11), scale=S(bw, bh, 1))
 
     # かご（短期記憶）
-    basket = empty('basket', T(-2.05, 0, -0.5))
+    basket = empty('basket', T(-2.75, 0, -0.5))
     kw, kh, kd = 0.95, 0.5, 0.8
     box('basket_bottom', S(kw, 0.06, kd), wicker, T(0, 0.03, 0), parent=basket, bevel=0.01)
     box('basket_f', S(kw, kh, 0.06), wicker, T(0, kh / 2, kd / 2), parent=basket, bevel=0.02)
@@ -397,7 +400,7 @@ def build_room():
             box(f'basket_weave_v{col}_{side}', S(.023, kh - .06, .022), wood_dark, T(-kw / 2 + .065 + col * .1, kh / 2, side * (kd / 2 + .04)), parent=basket, bevel=.008)
 
     # ベッド
-    bed = empty('bed', T(1.75, 0, 1.9))
+    bed = empty('bed', T(2.45, 0, 1.9))
     box('bed_base', S(1.3, 0.3, 2.1), wood_dark, T(0, 0.15, 0), parent=bed)
     box('bed_head', S(1.3, 0.85, 0.1), wood_dark, T(0, 0.42, -1.05), parent=bed)
     box('bed_foot', S(1.3, 0.5, 0.1), wood_dark, T(0, 0.25, 1.05), parent=bed)
@@ -435,7 +438,7 @@ def build_room():
            scale=(0.15, 1, 1))
 
     # 観察ノートの机。部屋から直接開く小物。
-    desk = empty('journal_desk', T(-1.65, 0, 1.45))
+    desk = empty('journal_desk', T(-2.35, 0, 1.45))
     box('desk_top', S(1.15, .1, .8), wood, T(0, .65, 0), parent=desk, bevel=.035)
     for i, (x, z) in enumerate(((-.46, -.29), (.46, -.29), (-.46, .29), (.46, .29))):
         box(f'desk_leg{i}', S(.09, .6, .09), wood_dark, T(x, .3, z), parent=desk)
@@ -570,13 +573,13 @@ def build_room():
 
     # ---- 立ち位置などの目印 ----
     empty('at_home', T(0, 0, 0.5))
-    empty('at_basket', T(-1.2, 0, -0.5))
-    empty('at_bed', T(0.75, 0, 1.9))
-    empty('bed_top', T(1.75, 1.0, 2.6))
-    empty('basket_top', T(-2.05, 0.7, -0.5))
-    empty('ear', T(-2.05, 3.3, -0.5))
-    empty('at_door_in', T(-2.1, 0, 2.65))
-    empty('at_door_out', T(-3.6, 0, 2.6))
+    empty('at_basket', T(-1.9, 0, -0.5))
+    empty('at_bed', T(1.45, 0, 1.9))
+    empty('bed_top', T(2.45, 1.0, 2.6))
+    empty('basket_top', T(-2.75, 0.7, -0.5))
+    empty('ear', T(-2.75, 3.3, -0.5))
+    empty('at_door_in', T(-2.8, 0, 2.65))
+    empty('at_door_out', T(-4.3, 0, 2.6))
     empty('at_hide', T(-4.35, 0, 1.7))
     empty('plaza_center', T(px - 0.6, 0, -0.1))
     export('room.glb')

@@ -738,7 +738,7 @@ def build_courier_bag():
 # 頭の中の部屋の並び。src/ui/neural-view.js の ROOMS と同じ値にする。
 MIND_ROOMS = [
     # 名前, 中心 x, 中心 z, 壁の腰板の色, 机の奥行き
-    ('heard', -11, 9, (.93, .74, .50), 1.6),
+    ('spare_mail', -11, 9, (.93, .74, .50), 1.6),
     ('context', 0, 9, (.62, .78, .72), 2.0),
     ('work0', -11, 0, (.95, .78, .45), 1.8),
     ('work1', 0, 0, (.55, .74, .86), 1.8),
@@ -746,7 +746,7 @@ MIND_ROOMS = [
     ('work3', 11, -9, (.93, .66, .55), 1.8),
     ('work4', 0, -9, (.76, .68, .88), 1.8),
     ('work5', -11, -9, (.50, .78, .74), 1.8),
-    ('candidates', -22, -9, (.90, .72, .78), 1.6),
+    ('spare_candidates', -22, -9, (.90, .72, .78), 1.6),
     ('roulette', -22, 0, (.70, .64, .86), 3.4),
     ('output', -22, 9, (.96, .80, .55), 2.6),
 ]
@@ -839,7 +839,7 @@ def build_mind_space():
         plant(name + '_sillplant', wx + .65, 1.16, cz - 2.82, .42)
         # 壁の棚と小物
         sx = cx - 1.6
-        for k, yy in enumerate((1.45, 2.05)):
+        for k, yy in enumerate(() if name.startswith('spare_') else (1.45, 2.05)):
             box(f'{name}_shelf{k}', S(3.2, .07, .36), oak, T(sx, yy, cz - 2.80), bevel=.02)
             for j in range(6):
                 r = rnd(j + k * 7, i + 1)
@@ -856,10 +856,12 @@ def build_mind_space():
         plant(name + '_plant', cx + 4.0, 0, cz - 2.5, 1.0)
         # 作業机
         big = depth >= 3
-        table(name + '_table', cx + .3, cz + (.5 if big else .7), 4.4 if big else 6.4, depth)
+        if not name.startswith('spare_'):
+            table(name + '_table', cx + .3, cz + (.5 if big else .7), 4.4 if big else 6.4, depth)
         # 奥の壁の上の看板の板（文字は three.js 側で出す）
-        box(name + '_sign', S(3.7, .90, .12), oak_dark, T(cx, 3.05, cz - 3.06), bevel=.05)
-        box(name + '_sign_face', S(3.5, .72, .13), paper, T(cx, 3.05, cz - 3.05), bevel=.03)
+        if not name.startswith('spare_'):
+            box(name + '_sign', S(3.7, .90, .12), oak_dark, T(cx, 3.05, cz - 3.06), bevel=.05)
+            box(name + '_sign_face', S(3.5, .72, .13), paper, T(cx, 3.05, cz - 3.05), bevel=.03)
         # 入口のドア。ちょうつがいを原点にして three.js 側で開け閉めする
         door = empty(name + '_door', T(cx - 4.33, 0, cz + 3.06))
         box(name + '_door_leaf', S(1.26, 2.05, .08), wall, T(.64, 1.06, 0), parent=door, bevel=.03)
@@ -940,6 +942,12 @@ def build_mind_space():
             box(f'mind_outer_win_{side}{j}_frame', S(.10, 1.5, 2.3), trim, T(xx, 2.1, zz), bevel=.03)
             box(f'mind_outer_win_{side}{j}_glass', S(.12, 1.26, 2.06), glass, T(xx, 2.1, zz), bevel=.0)
             box(f'mind_outer_win_{side}{j}_bar', S(.14, 1.3, .07), trim, T(xx, 2.1, zz), bevel=.01)
+    # 玄関のポスト。元のことばを残し、写しを運ぶ。
+    box('mind_mailbox_post', S(.16, 1.0, .16), oak_dark, T(12.9, .5, 14.8), bevel=.03)
+    box('mind_mailbox_body', S(1.15, .85, .65), red, T(12.9, 1.4, 14.8), bevel=.09)
+    box('mind_mailbox_roof', S(1.3, .12, .78), oak_dark, T(12.9, 1.88, 14.8), bevel=.04)
+    box('mind_mailbox_slot', S(.72, .09, .02), oak_dark, T(12.9, 1.57, 15.14), bevel=.01)
+    box('mind_mailbox_letter', S(.5, .18, .04), paper, T(12.9, 1.58, 15.17), bevel=.01)
     # 手前の低い壁と正面玄関（空いている広間の前）
     box('mind_outer_front_a', S(11 - 1.2 - X0, .5, .25), plaster, T((X0 + 11 - 1.2) / 2, .25, Z1 + .12), bevel=.05)
     box('mind_outer_front_b', S(X1 - 11 - 1.2, .5, .25), plaster, T((X1 + 11 + 1.2) / 2, .25, Z1 + .12), bevel=.05)

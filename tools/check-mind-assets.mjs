@@ -4,6 +4,11 @@ import { readFile } from 'node:fs/promises';
 // 実際に配信するGLBの境界を調べる。交差する絨毯の同じ高さの面を再発させない。
 const data = await readFile(new URL('../assets/mind-space.glb', import.meta.url));
 const gltf = JSON.parse(data.subarray(20, 20 + data.readUInt32LE(12)).toString());
+for (const room of ['spare_mail', 'spare_candidates']) {
+  assert.ok(gltf.nodes.some(n => n.name === `${room}_back`), '用途を移した部屋の建物は残す');
+  assert.ok(!gltf.nodes.some(n => n.name.startsWith(`${room}_table`) || n.name === `${room}_sign`), '空き部屋に机と看板を残さない');
+}
+assert.ok(gltf.nodes.some(n => n.name === 'mind_mailbox_body'));
 const bounds = node => {
   assert.ok(!node.rotation && !node.matrix && !node.scale, `${node.name}: 境界検証に変換の追加対応が必要`);
   const accessor = gltf.accessors[gltf.meshes[node.mesh].primitives[0].attributes.POSITION];

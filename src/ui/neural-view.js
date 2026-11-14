@@ -1,11 +1,12 @@
-﻿import * as THREE from 'three';
+import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { applySurface, boxUV } from './textures.js';
 import { explainNeural, frameOf, readout, rouletteTurn, rouletteSector } from './neural-explanation.js';
+import { simpleGuide, guidePicture, glossary } from './neural-guide.js';
 
-const labels = { '<bos>': 'はじまり', '<eos>': 'おしまい', '<user>': 'あなた', '<assistant>': 'コト', '<turn>': '交代', '<unk>': '？', '<speaker2>': '話者3', '<speaker3>': '話者4', '■': 'おしまい' };
+const labels = { '<bos>': 'はじまり', '<eos>': 'おしまい', '<user>': 'あなた', '<assistant>': 'コト', '<turn>': '交代', '<unk>': '未習', '<speaker2>': '話者3', '<speaker3>': '話者4', '■': 'おしまい' };
 export const tokenLabel = token => labels[token] ?? token;
 const V3 = THREE.Vector3;
 const ease = k => k * k * (3 - 2 * k);
@@ -17,7 +18,6 @@ const GOLD = '#f2c14e', BLUE = '#62aede', GOLD_PALE = '#eadfb4', BLUE_PALE = '#b
 
 // 頭の中の部屋。blender/build_assets.py の MIND_ROOMS と同じ並び。
 export const ROOMS = {
-  heard: { x: -11, z: 9, depth: 1.6, sign: 'とどいた ことば' },
   context: { x: 0, z: 9, depth: 2.0, sign: 'じゅんばんに ならべる' },
   work0: { x: -11, z: 0, depth: 1.8, sign: '① 数に する' },
   work1: { x: 0, z: 0, depth: 1.8, sign: '② 見くらべる' },
@@ -25,36 +25,38 @@ export const ROOMS = {
   work3: { x: 11, z: -9, depth: 1.8, sign: '④ たしなおす' },
   work4: { x: 0, z: -9, depth: 1.8, sign: '⑤ しぼる' },
   work5: { x: -11, z: -9, depth: 1.8, sign: '⑥ 点を つける' },
-  candidates: { x: -22, z: -9, depth: 1.6, sign: 'こうほ' },
   roulette: { x: -22, z: 0, depth: 3.4, sign: 'ルーレット' },
   output: { x: -22, z: 9, depth: 2.6, sign: 'へんじ' },
 };
 const LANES = [-27.5, -16.5, -5.5, 5.5, 16.5];
-const roomOf = a => ROOMS[a.lane === 'work' ? `work${a.index ?? 0}` : ['attention', 'sorting'].includes(a.lane) ? 'context' : a.lane] ?? ROOMS.heard;
+const roomOf = a => ROOMS[a.lane === 'work' ? `work${a.index ?? 0}` : a.lane === 'candidates' ? 'roulette' : ['attention', 'sorting'].includes(a.lane) ? 'context' : a.lane] ?? ROOMS.context;
 const tableOf = r => ({ x: r.x + .3, z: r.z + (r.depth >= 3 ? .5 : .7), w: r.depth >= 3 ? 4.4 : 6.4, d: r.depth });
 const grid12 = (t, i, dz) => new V3(t.x - 2.75 + (i % 12) * .5, 1.2, t.z - dz + Math.floor(i / 12) * dz * 2);
 
 // 札を置く場所。World coordinates are independent of the viewport.
 export function neuralPoint(a) {
   const t = tableOf(roomOf(a)), index = a.index ?? 0;
-  if (a.lane === 'entrance') return new V3(11, 1.2, 15.2);
+  if (['entrance', 'heard'].includes(a.lane)) return new V3(12.9, 1.65, 14.8);
   if (a.lane === 'sorting') return new V3(t.x - 2.4 + index * .6, 1.15, t.z - .8);
   if (a.lane === 'roulette') return new V3(t.x, 1.75, t.z);
   if (a.lane === 'work') return a.slot == null ? new V3(t.x - 2.55, 1.25, t.z + .3) : new V3(t.x + .65 + (a.slot - ((a.count ?? 5) - 1) / 2) * .95, 1.6, t.z + .4);
-  if (a.lane === 'attention') return grid12(t, index, .45);
-  if (a.lane === 'candidates') return new V3(t.x - 2.4 + index * 1.2, 1.25, t.z + .1);
+  if (a.lane === 'attention') return grid12(t, index % 24, .45).add(new V3(0, Math.floor(index / 24) * .12, 0));
+  if (a.lane === 'candidates') { const angle = Math.PI * index / 4; return new V3(t.x - Math.cos(angle) * 1.85, 1.25, t.z - Math.sin(angle) * 1.65); }
   if (a.lane === 'output') return new V3(t.x - 2.9 + (index % 10) * .64, 1.2, t.z - .8 + Math.min(2, Math.floor(index / 10)) * .8);
   return grid12(t, index % 24, .35);
 }
 // コトが立つ場所。机の奥に立って、手前（見る人のほう）を向く。
 function dock(a) {
-  if (a.lane === 'entrance') return new V3(11, 0, 14.1);
+  if (['entrance', 'heard'].includes(a.lane)) return new V3(12.9, 0, 13.8);
   const t = tableOf(roomOf(a)), p = neuralPoint(a);
   return new V3(between(p.x, t.x - t.w / 2 + .5, t.x + t.w / 2 - .5), 0, t.z - t.d / 2 - .62);
 }
 // 部屋から部屋へは、入口を出て道を通る。
 function route(a, b) {
-  if (a.lane === 'entrance') return [dock(a), new V3(11, 0, 13.5), new V3(-14.7, 0, 13.5), new V3(-14.7, 0, 12.1), dock(b)];
+  const mail = a => ['entrance', 'heard'].includes(a.lane);
+  if (mail(a) && mail(b)) return [dock(a), dock(b)];
+  if (mail(b)) return route(b, a).reverse();
+  if (mail(a)) { const r = roomOf(b); return [dock(a), new V3(12.9, 0, 13.5), new V3(r.x - 3.7, 0, 13.5), new V3(r.x - 3.7, 0, r.z + 3.1), dock(b)]; }
   const ra = roomOf(a), rb = roomOf(b), A = dock(a), B = dock(b);
   if (ra === rb) return [A, B];
   const exit = (r, d) => [new V3(r.x - 3.75, 0, d.z), new V3(r.x - 3.7, 0, r.z + 3.1), new V3(r.x - 3.7, 0, r.z + 4.5)];
@@ -107,7 +109,26 @@ export function createNeuralView(room, canvas) {
   explanations = level !== 'false';
   const explain = document.createElement('button'); explain.type = 'button'; explain.className = 'mind-explain-toggle';
   const notes = document.createElement('section'); notes.className = 'mind-explanation'; notes.hidden = true; notes.setAttribute('role', 'dialog'); notes.setAttribute('aria-label', '一時停止して作業を説明');
-  const heading = document.createElement('h2'), body = document.createElement('p'), detail = document.createElement('p'); detail.className = 'mind-explanation-detail'; notes.append(heading, body, detail);
+  const heading = document.createElement('h2'), body = document.createElement('p'), detail = document.createElement('p'); detail.className = 'mind-explanation-detail';
+  const picture = document.createElement('div'); picture.className = 'mind-guide-picture';
+  const more = document.createElement('details'), summary = document.createElement('summary'); summary.textContent = 'くわしい仕組みと数字'; more.append(summary, detail);
+  const wordNote = document.createElement('aside'); wordNote.className = 'mind-word-note'; wordNote.hidden = true;
+  const wordText = document.createElement('p'), wordClose = document.createElement('button'); wordClose.type = 'button'; wordClose.textContent = '説明を閉じる';
+  let wordButton = null;
+  wordClose.onclick = () => { wordNote.hidden = true; wordButton?.setAttribute('aria-expanded', 'false'); wordButton?.focus(); };
+  wordNote.append(wordText, wordClose);
+  notes.append(heading, picture, body, wordNote, more);
+  const words = new RegExp(`(${Object.keys(glossary).join('|')})`, 'g');
+  function showGuideBody(text) {
+    if (body.textContent === text) return;
+    wordNote.hidden = true; wordButton = null;
+    body.replaceChildren(...text.split(words).map(part => {
+      if (!Object.hasOwn(glossary, part)) return document.createTextNode(part);
+      const button = document.createElement('button'); button.type = 'button'; button.className = 'mind-word'; button.textContent = part; button.setAttribute('aria-expanded', 'false');
+      button.onclick = () => { wordButton?.setAttribute('aria-expanded', 'false'); wordButton = button; button.setAttribute('aria-expanded', 'true'); wordText.textContent = glossary[part]; wordNote.hidden = false; wordNote.scrollIntoView({ block: 'nearest' }); };
+      return button;
+    }));
+  }
   const next = document.createElement('button'); next.type = 'button'; next.className = 'mind-next'; next.textContent = 'つぎへ ▶'; next.hidden = true; notes.append(next);
   // くわしい説明で止まっている間の待ち。つぎへ・説明の切り替え・演出を飛ばす・閉じる、で進む
   let waiting = null, skipDetails = false;
@@ -120,7 +141,11 @@ export function createNeuralView(room, canvas) {
   const updateMode = () => { explanations = level !== 'false'; explain.textContent = level === 'detail' ? '止めて説明' : '説明なし'; explain.setAttribute('aria-pressed', String(explanations)); notes.classList.toggle('detail', level === 'detail'); canvas.dataset.explain = level; };
   updateMode();
   explain.onclick = () => { level = level === 'false' ? 'detail' : 'false'; updateMode(); notes.hidden = !waiting; if (level !== 'detail') proceed('mode'); try { localStorage.setItem('kara-mind-guide', level); } catch { /* Keep the current mode in memory. */ } };
-  const help = document.createElement('span'); help.textContent = 'ドラッグで回転 · 右ドラッグで移動 · ホイールでズーム';
+  const help = document.createElement('details'); help.className = 'mind-camera-help';
+  const helpTab = document.createElement('summary'); helpTab.setAttribute('aria-label', '見まわし方を開く'); helpTab.title = '見まわし方';
+  helpTab.innerHTML = '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M5 8q6-3 11 0 5-3 11 0v18q-6-3-11 0-5-3-11 0Z" fill="#e9d8b3" stroke="currentColor" stroke-width="2"/><path d="M16 8v18M9 12h3m-3 5h3m8-5h3m-3 5h3" stroke="currentColor" stroke-width="1.5"/></svg>';
+  const helpText = document.createElement('p'); helpText.textContent = '見まわす：ドラッグ／指1本\n場所をずらす：右ドラッグ／指2本\n近づく：ホイール／指2本で広げる';
+  help.append(helpTab, helpText);
   toolbar.append(follow, overview, explain, help); canvas.parentElement.append(toolbar);
   const narrow = () => lastW <= 640;
   function home() { controls.target.set(-5.5, 0, 1); camera.position.copy(controls.target).add(narrow() ? new V3(6, 62, 48) : new V3(5, 30, 33)); controls.update(); }
@@ -177,18 +202,19 @@ export function createNeuralView(room, canvas) {
   const needleMaterial = new THREE.MeshStandardMaterial({ color: '#c4654c', roughness: .4 });
   const shaft = new THREE.Mesh(new THREE.BoxGeometry(.065, .05, 1.22), needleMaterial); shaft.position.z = -.61; needle.add(shaft);
   const tip = new THREE.Mesh(new THREE.ConeGeometry(.13, .27, 24), needleMaterial); tip.rotation.x = -Math.PI / 2; tip.position.z = -1.24; needle.add(tip);
-  let wheelRows = null;
-  function paintWheel(rows) {
-    if (rows === wheelRows) return;
-    wheelRows = rows;
+  let wheelRows = null, wheelShare = -1;
+  function paintWheel(rows, share = 1) {
+    share = Math.round(ease(share) * 60) / 60;
+    if (rows === wheelRows && share === wheelShare) return;
+    wheelRows = rows; wheelShare = share;
     const c = wheelCanvas.getContext('2d'); c.clearRect(0, 0, 1024, 1024);
     c.fillStyle = '#eee5c7'; c.beginPath(); c.arc(512, 512, 510, 0, Math.PI * 2); c.fill();
     let start = -Math.PI / 2;
     const colors = ['#edb96f', '#7dbbad', '#b4a5d5', '#dc947f', '#98ba77', '#81b1d2'];
     for (let i = 0; i < rows.length; i++) {
-      const row = rows[i], end = start + row.p * Math.PI * 2;
+      const row = rows[i], end = start + row.p * share * Math.PI * 2;
       c.beginPath(); c.moveTo(512, 512); c.arc(512, 512, 505, start, end); c.closePath(); c.fillStyle = colors[i % colors.length]; c.fill(); c.strokeStyle = '#f9efcf'; c.lineWidth = 3; c.stroke();
-      if (row.p > .025) {
+      if (row.p * share > .025) {
         const angle = (start + end) / 2;
         c.save(); c.translate(512 + Math.cos(angle) * 330, 512 + Math.sin(angle) * 330); c.rotate(angle + Math.PI / 2);
         c.fillStyle = '#263d3b'; c.font = 'bold 62px "Yu Gothic UI", sans-serif'; c.textAlign = 'center'; c.fillText(tokenLabel(row.token), 0, 0, 200);
@@ -332,7 +358,8 @@ export function createNeuralView(room, canvas) {
         const height = (.05 + stage.weights[j] / top * .75) * ease(clamp((st - .4) / .45));
         if (height > .01) bar(p.x, p.z, height, active ? HOT : GOLD, size * .8, size * .55);
         const card = p.clone().setY(TOP + height + size * .35 + .03); cards.push(card);
-        label(tokenLabel(stage.tokens[j]), card, size, active ? '#ffe2a6' : '#fff0ce');
+        label(tokenLabel(stage.sourceTokens?.[j] ?? stage.tokens[j]), card, size, active ? '#ffe2a6' : '#fff0ce');
+        if (stage.tokens[j] === '<unk>') label('未習', card.clone().add(new V3(0, -.2, .12)), .3, '#e6c9ac', 'num');
         if (st >= 1 && best.includes(j) && !active) label(`${(stage.weights[j] * 100).toFixed(0)}%`, card.clone().add(new V3(0, size * .35 + .16, 0)), .62, '#ffd878', 'board');
         if (active && kind === 'match') {
           // 虫めがねで 1 文字ずつ見くらべる
@@ -454,7 +481,7 @@ export function createNeuralView(room, canvas) {
     const count = travel?.tokens.length ?? 0, pack = count > 1 ? .3 : .2;
     const k = travel?.k ?? 1, walk = travel ? clamp((k - pack) / (1 - pack * 2)) : 1;
     const lottery = v.phase === 'pick' && v.lottery && !count ? v.lottery : null;
-    paintWheel(v.rows); paintBoard(v);
+    paintWheel(v.rows, v.share ?? 1); paintBoard(v);
     const turn = v.lottery ? rouletteTurn(v.lottery.k, v.lottery.r) : 0;
     needle.rotation.y = -Math.PI * 2 * turn;
     if (v.lottery) {
@@ -489,40 +516,38 @@ export function createNeuralView(room, canvas) {
     const moving = (lane, index) => count && k > 0 && travel.froms.some((a, n) => a.lane === lane && a.index === index && lane === 'candidates' && (count === 1 || k >= pack * n / count));
     const source = v.source ?? v.heard ?? v.seq ?? [];
     const start = Math.floor((v.sourceAt ?? 0) / 24) * 24;
-    source.slice(start, start + 24).forEach((token, i) => { label(tokenLabel(token), neuralPoint({ lane: 'heard', index: i }), .46); });
-    if (v.inboxText) label(v.inboxText, new V3(-10.7, 2.05, 9), 4.4, '#fff0ce', 'board');
-    if (v.arriving) label('玄関に ことばが届いた', new V3(11, 3.8, 15.2), 3.2, '#fff0ce', 'board');
+    label('ポスト', new V3(12.9, 2.5, 14.8), 1.5, '#fff0ce', 'board');
+    if (v.inboxText) label(v.inboxText, new V3(12.9, 3.15, 14.8), 4.4, '#fff0ce', 'board');
     if (source.length > 24) label(`${start + 1}–${Math.min(start + 24, source.length)} / ${source.length}`, neuralPoint({ lane: 'heard', index: 5 }).add(new V3(.25, 1, -.3)), 1.6);
     (v.contextCards ?? []).forEach((token, i) => {
       const p = neuralPoint({ lane: 'attention', index: i });
-      if (token != null && !moving('attention', i)) label(tokenLabel(token), p, .46, v.attentionFocus === i ? '#ffd878' : '#fff0ce');
-      if (token != null && !v.arrange) label(String((v.contextOffset ?? 0) + i + 1), p.clone().add(new V3(0, -.3, .2)), .32, '#fff0ce', 'num');
+      if (token != null) bar(p.x, p.z, .055, i % 2 ? '#e8d9b7' : '#fff0ce', .46, .32, p.y - .12);
+      if (token != null && i + 24 >= v.contextCards.length && !moving('attention', i)) label(tokenLabel(token), p, .46, v.attentionFocus === i ? '#ffd878' : '#fff0ce');
+      if (token != null && !v.arrange && i + 24 >= v.contextCards.length) label(String(i + 1), p.clone().add(new V3(0, -.3, .2)), .32, '#fff0ce', 'num');
     });
+    if (v.contextCards?.length > 24) label(`${v.contextCards.length}まい`, new V3(3.15, .95, 10.6), .8, '#fff0ce', 'num');
     if (v.arrange) {
       const a = v.arrange;
       a.tokens.forEach((token, j) => {
-        const to = neuralPoint({ lane: 'attention', index: (a.offset + j) % 24 });
+        const to = neuralPoint({ lane: 'attention', index: a.offset + j });
         bar(to.x, to.z, .025, j === a.index ? HOT : '#d2c4a0', .46, .5);
         label(String(a.offset + j + 1), to.clone().add(new V3(0, -.3, .2)), .32, '#fff0ce', 'num');
         if (j >= a.index) {
           const from = neuralPoint({ lane: 'sorting', index: j });
           const p = j === a.index ? arc(from, to, ease(a.k), .65) : from;
           label(tokenLabel(token), p, .48);
-          if (j === a.index) hand = p.clone();
+          if (j === a.index) hand = p.clone().add(new V3(-.24, 0, 0).applyQuaternion(camera.quaternion));
         }
       });
-      const t = tableOf(ROOMS.context);
-      label('聞いた順に 1 → 2 → 3', new V3(t.x, .55, t.z + 1.3), 3.0, '#fff0ce', 'board');
       canvas.dataset.arrange = `${a.offset + a.index}`;
     } else delete canvas.dataset.arrange;
     if (v.workToken != null && !stages[v.workAt ?? 0] && !moving('work', v.workAt ?? 0)) label(tokenLabel(v.workToken), neuralPoint({ lane: 'work', index: v.workAt ?? 0 }), .9);
     (v.visibleRows ?? []).forEach((r, i) => {
       if (!r) return;
       const grow = ease(v.share ?? 1), shown = grow < 1 ? Math.round(r.p * grow * 100) : (r.p * 100).toFixed(1);
-      const p = neuralPoint({ lane: 'candidates', index: i }), chosen = r.token === v.picked, height = .05 + r.p * 1.1 * grow;
-      bar(p.x, p.z - .5, height, chosen ? HOT : GOLD, .5, .3);
-      label(`${shown}%`, new V3(p.x, TOP + height + .2, p.z - .5), 1.0, chosen ? '#ffd878' : '#fff0ce', 'board');
-      if (!moving('candidates', i)) label(tokenLabel(r.token), p, .9, chosen ? '#ffd878' : '#fff0ce');
+      const p = neuralPoint({ lane: 'candidates', index: i }), chosen = r.token === v.picked;
+      label(`${shown}%`, p.clone().add(new V3(0, .5, 0)), .72, chosen ? '#ffd878' : '#fff0ce', 'board');
+      if (!moving('candidates', i)) label(tokenLabel(r.token), p, .65, chosen ? '#ffd878' : '#fff0ce');
     });
     if (v.lottery?.k === 1 && !(count && travel.froms[0].lane === 'roulette' && k > 0)) label(tokenLabel(v.lottery.token), neuralPoint({ lane: 'roulette' }), 1);
     (v.out ?? []).forEach((token, i) => label(tokenLabel(token), neuralPoint({ lane: 'output', index: i }), .58));
@@ -556,7 +581,14 @@ export function createNeuralView(room, canvas) {
       const local = arm.parent.worldToLocal(hand.clone()).sub(arm.position).normalize();
       arm.quaternion.setFromUnitVectors(new V3(0, -1, 0), local); arm.updateMatrixWorld(true);
       const grip = arm.localToWorld(new V3(0, -.2, 0));
-      if (stick) { stick.visible = true; stick.position.copy(grip); stick.lookAt(hand); stick.scale.set(1, 1, Math.max(.05, grip.distanceTo(hand))); }
+      if (stick) {
+        const length = Math.max(.05, grip.distanceTo(hand) - .05);
+        stick.visible = true; stick.position.copy(grip); stick.lookAt(hand);
+        // 柄だけを伸ばし、先端の球は接触点の手前で止める。
+        const rod = stick.getObjectByName('mind_stick_rod');
+        rod.scale.z = length; rod.position.z = length / 2;
+        stick.getObjectByName('mind_stick_tip').position.z = length;
+      }
     }
 
     // 近づくとドアが開き、通りすぎると閉まる
@@ -605,8 +637,12 @@ export function createNeuralView(room, canvas) {
 
     notes.hidden = !explanations || !waiting;
     if (explanations) {
-      const info = explainNeural(v);
-      for (const [element, text] of [[heading, info.title], [body, info.body], [detail, info.detail]]) if (element.textContent !== text) element.textContent = text;
+      const info = explainNeural(v), guide = simpleGuide(v, info);
+      if (heading.textContent !== guide.title || body.textContent !== guide.body) more.open = false;
+      for (const [element, text] of [[heading, guide.title], [detail, `${info.body}\n${info.detail}`]]) if (element.textContent !== text) element.textContent = text;
+      showGuideBody(guide.body);
+      const art = guidePicture(guide);
+      if (picture.dataset.key !== art) { picture.innerHTML = art; picture.dataset.key = art; }
     }
     canvas.dataset.view = following && lottery ? 'roulette-closeup' : following && work ? 'work-closeup' : following ? 'follow' : 'free';
     if (work && active) canvas.dataset.manipulating = String(active.index); else delete canvas.dataset.manipulating;
@@ -616,7 +652,7 @@ export function createNeuralView(room, canvas) {
     for (const [key, material] of cache) if (!live.has(material)) { material.map.dispose(); material.dispose(); cache.delete(key); }
     if (following) {
       let look, offset, key;
-      if (v.arrange) { look = neuralPoint({ lane: 'attention', index: (v.arrange.offset + v.arrange.index) % 24 }); offset = narrow() ? new V3(0, 6, 7) : new V3(0, 4.8, 6); key = 'arrange'; }
+      if (v.arrange) { look = neuralPoint({ lane: 'attention', index: v.arrange.offset + v.arrange.index }); offset = narrow() ? new V3(0, 6, 7) : new V3(0, 4.8, 6); key = 'arrange'; }
       else if (lottery) { look = new V3(wheelAt.x, .9, wheelAt.z); offset = new V3(.6, 5.4, 4.8).multiplyScalar(narrow() ? 1.25 : 1); key = 'roulette'; }
       else if (work) {
         const t = tableOf(ROOMS[`work${work.index}`]);

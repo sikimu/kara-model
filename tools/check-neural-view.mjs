@@ -2,6 +2,18 @@ import assert from 'node:assert/strict';
 import { workFrame, frameOf, stepNote, unitCount, readout, tuneChange, explainNeural, rouletteTurn, rouletteSector, arrangeNote } from '../src/ui/neural-explanation.js';
 import proportional from '../src/model/chips/sampler-proportional.js';
 import { createNeural } from '../src/model/neural.js';
+import { simpleGuide, guidePicture, glossary } from '../src/ui/neural-guide.js';
+
+const unfamiliar = createNeural().inspect(['<bos>', '<user>', '猫']);
+assert.equal(unfamiliar.stages[1].tokens.at(-1), '<unk>');
+assert.equal(unfamiliar.stages[1].sourceTokens.at(-1), '猫', '未習でも元の文字を表示用の記録に残す');
+const beginner = simpleGuide({ operation: { index: 1 }, stages: unfamiliar.stages }, { title: '②', body: '', detail: '' });
+assert.match(beginner.body, /まだ覚えていない/);
+assert.doesNotMatch(beginner.body, /高い台|自己注意|Q・K/);
+assert.match(guidePicture(beginner), /role="img"/);
+assert.ok(glossary['見る割合'].includes('次の文字として選ばれる確率とは別'));
+assert.ok(glossary['確率'].includes('必ず1回'));
+assert.ok(!guidePicture({ ...beginner, tokens: ['<script>'] }).includes('<script>'), '図に入力をHTMLとして埋め込まない');
 
 // 学習: 重みを1個ずつ動かして見せる
 const tune = { label: '注意 Q', kind: 'tune', before: [-.2, .3, 0, .1, .5, .5], values: [.1, -.4, .2, .1, .5, .6] };

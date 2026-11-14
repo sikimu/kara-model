@@ -510,5 +510,26 @@ button.person-icon:hover { background: #f0e4cb; }
 @media (max-width: 640px) { .mind-explanation, .mind-explanation.detail { padding: 18px 20px; } .mind-explanation h2 { font-size: 19px; } .mind-explanation p { font-size: 15px; } }
 
 .mind-explanation { background: #20383c; }
+.mind-guide-picture svg { display: block; width: 100%; max-height: 150px; }
+.mind-explanation details { margin: 12px 0; font-size: 13px; color: #c4dedb; }
+.mind-explanation summary { cursor: pointer; padding: 6px 0; }
+.mind-explanation-detail { white-space: pre-line; }
+.mind-word { border: 0; border-bottom: 1px dashed #ffdc96; background: none; color: #ffdc96; font: inherit; padding: 0 2px; cursor: pointer; }
+.mind-word:focus-visible { outline: 2px solid #ffdc96; outline-offset: 2px; }
+.mind-word-note { margin: 10px 0; padding: 10px 14px; border-radius: 8px; background: #36504e; }
+.mind-word-note[hidden] { display: none; }
+.mind-word-note p { font-size: 14px; }
+.mind-word-note button { background: none; color: #ffdc96; border: 1px solid #a3b39b; border-radius: 6px; padding: 5px 10px; cursor: pointer; }
+.mind-camera-help { position: relative; color: #5b5944; }
+.mind-camera-help summary { list-style: none; cursor: pointer; width: 32px; height: 32px; }
+.mind-camera-help summary::-webkit-details-marker { display: none; }
+.mind-camera-help svg { width: 32px; height: 32px; }
+.mind-camera-help p { position: absolute; right: 0; top: 34px; width: max-content; max-width: calc(100vw - 48px); padding: 14px 18px; border-radius: 5px 12px 12px 5px; background: #eee3c8; box-shadow: 2px 5px 14px #1c332f40; font-size: 12px; line-height: 2; white-space: pre-line; }
+.journey-card { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; }
+.journey-painting { width: 100%; height: 100%; max-height: none; aspect-ratio: auto; margin: 0; border: 0; border-radius: 0; box-shadow: none; transform: none; }
+.journey-art { object-fit: cover; }
+.journey-route { position: absolute; bottom: 7%; right: 7%; margin: 0; gap: 12px; }
+.journey-to { border: 2px solid #9d815a; border-radius: 3px; background: #e0c79b; color: #594b39; padding: 9px 22px; box-shadow: 2px 4px 0 #74604255; transform: rotate(-3deg); }
+@media (max-width: 640px) { .mind-guide-picture svg { max-height: 105px; } .mind-explanation::before { margin-bottom: 7px; } .mind-explanation h2 { margin-bottom: 10px; } }
 .mind-cargo { position: absolute; z-index: 11; right: 20px; bottom: 22px; max-width: min(380px, calc(100% - 40px)); padding: 12px 18px; border-radius: 12px; background: #fff1d9f5; color: #35483d; border: 1px solid #bca479; white-space: pre-line; overflow-wrap: anywhere; font-size: 15px; line-height: 1.7; pointer-events: none; }
 .mind-cargo[hidden] { display: none; }

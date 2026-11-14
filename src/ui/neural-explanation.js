@@ -36,14 +36,14 @@ export function arrangeNote(token, index, previous) {
 
 const num = x => `${x < 0 ? '−' : ''}${Math.abs(x).toFixed(2)}`;
 const pct = p => `${(p * 100).toFixed(1)}%`;
-const name = token => ({ '<bos>': 'はじまり', '<eos>': 'おしまい', '<user>': 'あなた', '<assistant>': 'コト', '<turn>': '交代', '<unk>': '？', '■': 'おしまい' })[token] ?? token;
+const name = token => ({ '<bos>': 'はじまり', '<eos>': 'おしまい', '<user>': 'あなた', '<assistant>': 'コト', '<turn>': '交代', '<unk>': '未習', '■': 'おしまい' })[token] ?? token;
 
 // 机の手前に出す、いま扱っている値の短い読み上げ。説明なしでも出す。
 export function readout(stage, frame) {
   const kind = stage.kind ?? 'tune', i = frame.index;
   if (kind === 'add') return `${num(stage.a[i])} ＋ ${num(stage.b[i])} ＝ ${num(stage.values[i])}`;
-  if (kind === 'match') return `「${name(stage.tokens[i])}」を 見る わりあい ${pct(stage.weights[i])}`;
-  if (kind === 'mix') return `「${name(stage.tokens[i])}」から ${pct(stage.weights[i])} ぶん`;
+  if (kind === 'match') return `「${name(stage.sourceTokens?.[i] ?? stage.tokens[i])}」を 見る わりあい ${pct(stage.weights[i])}`;
+  if (kind === 'mix') return `「${name(stage.sourceTokens?.[i] ?? stage.tokens[i])}」から ${pct(stage.weights[i])} ぶん`;
   if (kind === 'gate') return `${num(stage.before[i])} → ${num(stage.values[i])}`;
   if (kind === 'score') return `「${name(stage.candidates[i].token)}」は ${stage.candidates[i].score.toFixed(2)} 点`;
   if (!stage.before) return '';
@@ -65,8 +65,8 @@ export function stepNote(stage, frame, index) {
   const kind = stage.kind ?? 'tune', i = frame.index;
   if (kind === 'add' && index === 0) return `いま置いたのは ${i + 1}本め。文字「${name(stage.token)}」の ${i + 1}番めの数 ${num(stage.a[i])} に、「文の ${stage.position + 1}番め」を表す数 ${num(stage.b[i])} を重ねて、${num(stage.values[i])} になりました。12本そろうと、「${name(stage.token)}が ${stage.position + 1}番めにある」ことを表す数の組になります。`;
   if (kind === 'add') return `いま置いたのは ${i + 1}本め。①で作ったもとの数 ${num(stage.a[i])} に、③でまぜた手がかり ${num(stage.b[i])} を重ねて、${num(stage.values[i])} になりました。もとの数を捨てずに足すので、文字そのものの情報も残ります。`;
-  if (kind === 'match') return `「${name(stage.tokens[i])}」が、次の文字を当てる手がかりになりそうかを数にすると ${stage.scores[i].toFixed(2)} でした。全部の札の数を比べて割合に直すと ${pct(stage.weights[i])}。この割合の高さの台にのせました。`;
-  if (kind === 'mix') return `「${name(stage.tokens[i])}」が持つ12個の数に、見る割合 ${pct(stage.weights[i])} を掛けて、手前の列に足しました。割合が大きい札ほど、手前の列を大きく動かします。`;
+  if (kind === 'match') return `「${name(stage.sourceTokens?.[i] ?? stage.tokens[i])}」が、次の文字を当てる手がかりになりそうかを数にすると ${stage.scores[i].toFixed(2)} でした。全部の札の数を比べて割合に直すと ${pct(stage.weights[i])}。この割合の高さの台にのせました。`;
+  if (kind === 'mix') return `「${name(stage.sourceTokens?.[i] ?? stage.tokens[i])}」が持つ12個の数に、見る割合 ${pct(stage.weights[i])} を掛けて、手前の列に足しました。割合が大きい札ほど、手前の列を大きく動かします。`;
   if (kind === 'gate') return stage.before[i] < 0
     ? `${num(stage.before[i])} はマイナスなので、しぼり機で ${num(stage.values[i])} まで小さくつぶれました。「この特徴は当てはまらない」という合図は弱めて通します。`
     : `${num(stage.before[i])} はプラスなので、ほぼそのまま ${num(stage.values[i])} で通りました。「この特徴が当てはまる」という合図はそのまま次へ渡します。`;
@@ -126,7 +126,7 @@ export function explainNeural(v) {
     const from = (t.froms?.[0] ?? t.from).lane;
     return { title: `${what}を ${action}`,
       body: from === 'candidates' ? 'ルーレットで選ばれた文字を、返事の部屋へ運びます。出した文字は文脈にも加わり、その次の文字を考える手がかりになります。'
-        : from === 'work' ? '点の高かった文字を、候補の部屋へ運びます。そこで点を確率に直します。'
+        : from === 'work' ? '点の高かった文字を、ルーレットへ運びます。点を確率に直し、その割合の幅に広げてから回します。'
         : from === 'output' ? 'いま出した文字を文脈に加えます。次の文字は、この文字も見て決めます。'
         : '聞いたことばを1文字ずつの札にして、文脈の部屋に順番どおり並べます。「だれが話したか」「どこで交代したか」も札になっています。',
       detail: v.attentionFocus != null ? `この位置を見る割合：${(v.attention.weights[v.attentionFocus] * 100).toFixed(2)}%` : '札の1まいが、計算の単位（トークン）です。' };
@@ -135,6 +135,6 @@ export function explainNeural(v) {
   if (v.phase === 'pick') return { title: '確率に したがって えらぶ', body: 'いちばん確率が高い文字に決め打ちせず、確率の幅に合わせたルーレットで選びます。', detail: '選ばれた札は、コトが返事の部屋へ運びます。' };
   if (v.endText) return { title: v.endText, body: 'この返事の計算が終わりました。眠っておぼえた重みは保存され、次の会話でも使われます。', detail: '' };
   return { title: v.mode === 'learn' ? '聞いた会話を 思い出す' : v.mode === 'explore' ? '頭の中の 部屋を 見てまわる' : '届いた ことばを 受けとる',
-    body: v.mode === 'explore' ? '①〜⑥の部屋の机には、眠っておぼえた重みの一部が置いてあります。回転・移動・ズームで好きな部屋をのぞけます。' : 'ことばは左手前の部屋に届き、①から⑥の部屋を順番に通って、候補、ルーレット、返事の部屋へ進みます。コトが作業を始めると、その部屋の机に寄ります。',
+    body: v.mode === 'explore' ? '①〜⑥の部屋の机には、眠っておぼえた重みの一部が置いてあります。回転・移動・ズームで好きな部屋をのぞけます。' : 'ことばは玄関のポストに届き、①から⑥の部屋を順番に通って、ルーレット、返事の部屋へ進みます。コトが作業を始めると、その部屋の机に寄ります。',
     detail: '説明を隠しても、同じ数と動きを再生します。' };
 }

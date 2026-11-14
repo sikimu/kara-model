@@ -1045,16 +1045,15 @@ export function createMindView(root, room, model) {
       const said = tokens => tokens.map(tokenLabel).join('・');
       const carry = (token, from, to) => token == null ? walkTo(to) : carryMany([token], [from], [to]);
       const arrangeCards = async (part, offset) => {
-        v.contextOffset = Math.floor(offset / 24) * 24;
         v.arrange = { tokens: part, offset, index: 0, k: 0 };
         await hold({ title: '運んだだけでは、まだ準備の途中', body: 'ここから札を1枚ずつ、聞いた順に番号の付いた場所へ置きます。「や」「あ」と「あ」「や」は同じ文字でも違う並びです。順番も次の文字を考える手がかりになります。', detail: 'これから動く札と、置く場所を見てみましょう。' });
         for (let j = 0; j < part.length; j++) {
           await gate();
           v.arrange.index = j; v.arrange.k = 0;
           const previous = v.contextCards.at(-1);
-          await animate(step * 3, k => { v.arrange.k = k; });
+          await animate(step, k => { v.arrange.k = k; });
           await hold(arrangeNote(part[j], offset + j, previous));
-          v.contextCards[(offset + j) % 24] = part[j];
+          v.contextCards[offset + j] = part[j];
         }
         v.arrange = null;
       };
@@ -1090,9 +1089,8 @@ export function createMindView(root, room, model) {
       if (ev.type === 'tokenize') {
         v.heard = []; v.source = []; v.sourceAt = 0; v.sourceTaken = 0;
         if (ev.tokens.length) {
-          v.arriving = true;
-          await hold({ title: '玄関に、あなたのことばが届いた', body: `「${ev.tokens.join('')}」を受け取りました。まず元のことばを部屋に残し、その写しを使って返事の準備をします。`, detail: 'つぎへ進むと、コトが玄関からことばを運びます。' });
-          await carryMany([ev.tokens.join('')], [{ lane: 'entrance' }], [{ lane: 'heard', index: 5 }]);
+          v.arriving = true; v.inboxText = ev.tokens.join('');
+          await hold({ title: '玄関のポストに、あなたのことばが届いた', body: `「${ev.tokens.join('')}」を受け取りました。元のことばはポストに残し、その写しを使って返事の準備をします。`, detail: 'つぎへ進むと、コトがポストからことばの写しを運びます。' });
           v.arriving = false; v.inboxText = ev.tokens.join('');
         }
         v.heard = [...ev.tokens]; v.source = [...ev.tokens];
@@ -1129,7 +1127,7 @@ export function createMindView(root, room, model) {
         v.rows = []; v.visibleRows = []; v.picked = null;
         const rows = [...ev.candidates].sort((a, b) => b.p - a.p).slice(0, 5);
         await carryMany(rows.map(r => r.token), rows.map((_, slot) => ({ lane: 'work', index: 5, slot, count: rows.length })), rows.map((_, index) => ({ lane: 'candidates', index })));
-        // 候補の部屋で、点を確率（合計 100%）に直す
+        // ルーレットに候補を置き、点を確率（合計 100%）と扇形の幅に直す
         v.visibleRows = [...rows]; v.rows = ev.candidates; v.share = 0;
         canvas.dataset.share = 'growing';
         await animate(step * 5, k => { v.share = k; });
@@ -1184,14 +1182,14 @@ export function createMindView(root, room, model) {
         await hold({ title: `れんしゅう ${ev.epoch} / 12 が 終わった`, body: `6つの部屋の目もりを直したので、同じ問題をもう一度解くと、正解「${tokenLabel(ev.quiz?.answer ?? '')}」に付ける確率が ${((ev.quizBefore?.p ?? 0) * 100).toFixed(1)}% から ${((ev.quiz?.p ?? 0) * 100).toFixed(1)}% に変わりました。広間の掲示板に、はずれの大きさを書き足します。これを12回くり返します。`, detail: `はずれの大きさ（平均）${ev.loss.toFixed(3)}` });
       }
       if (ev.type === 'replay') {
-        v.seq = ev.tokens; v.source = ev.tokens; v.contextCards = []; v.workToken = null; v.inboxText = ev.text ?? ev.tokens.map(tokenLabel).join('');
+        v.seq = ev.tokens; v.source = ev.tokens; v.contextCards ??= []; v.workToken = null; v.inboxText = ev.text ?? ev.tokens.map(tokenLabel).join('');
+        const stackStart = v.contextCards.length;
         for (let at = 0; at < ev.tokens.length; at += 8) {
           v.seqAt = at; v.sourceAt = at;
-          if (at % 24 === 0) v.contextCards = [];
           v.sourceTaken = at;
           const part = ev.tokens.slice(at, at + 8);
           await carryMany(part, part.map((_, i) => ({ lane: 'heard', index: (at + i) % 24 })), part.map((_, i) => ({ lane: 'sorting', index: i })));
-          await arrangeCards(part, at);
+          await arrangeCards(part, stackStart + at);
           v.sourceTaken = at + part.length;
         }
         await hold({ title: '聞いた会話を 思い出して ならべた', body: `眠っている間に、起きているときに聞いた会話を1つずつ思い出します。いま並べたのは「${ev.tokens.map(tokenLabel).join('')}」。この並びの「途中まで見て、次の文字を当てる」を、練習問題にします。`, detail: `${ev.tokens.length}まいの札` });

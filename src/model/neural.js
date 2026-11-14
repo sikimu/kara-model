@@ -131,8 +131,8 @@ export function createNeural(seed = 173) {
         stages: [
           { label: '埋め込み + 位置', kind: 'add', values: c.xs[c.last], token: encoded[c.last], position: c.last,
             a: weights.embed.slice(id * DIM, (id + 1) * DIM), b: weights.pos.slice(c.last * DIM, (c.last + 1) * DIM) },
-          { label: 'RMSNorm → Q・K・V', kind: 'match', values: c.q, tokens: encoded, scores: c.scores, weights: c.attention },
-          { label: '注意の重みで合成', kind: 'mix', values: c.mix, tokens: encoded, weights: c.attention, parts: c.vs },
+          { label: 'RMSNorm → Q・K・V', kind: 'match', values: c.q, tokens: encoded, sourceTokens: tokens.slice(-WINDOW), scores: c.scores, weights: c.attention },
+          { label: '注意の重みで合成', kind: 'mix', values: c.mix, tokens: encoded, sourceTokens: tokens.slice(-WINDOW), weights: c.attention, parts: c.vs },
           { label: '投影 + 残差', kind: 'add', values: c.residual, a: c.xs[c.last], b: c.projected },
           { label: 'RMSNorm → MLP・GELU', kind: 'gate', values: c.hidden, before: c.pre },
           { label: 'MLP + 残差 → 出力', kind: 'score', values: c.final, candidates },

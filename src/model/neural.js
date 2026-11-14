@@ -34,13 +34,13 @@ export function createNeural(seed = 173) {
     const xs = ids.map((id, p) => Array.from({ length: DIM }, (_, j) => weights.embed[id * DIM + j] + weights.pos[p * DIM + j]));
     const norms = xs.map(rms), ns = norms.map(n => n.y), last = ids.length - 1;
     const q = mul(ns[last], weights.q, DIM), ks = ns.map(n => mul(n, weights.k, DIM)), vs = ns.map(n => mul(n, weights.v, DIM));
-    const attention = softmax(ks.map(k => dot(q, k) / Math.sqrt(DIM)));
+    const scores = ks.map(k => dot(q, k) / Math.sqrt(DIM)), attention = softmax(scores);
     const mix = zeros(DIM); vs.forEach((v, i) => v.forEach((x, j) => { mix[j] += attention[i] * x; }));
-    const residual = add(xs[last], mul(mix, weights.o, DIM));
+    const projected = mul(mix, weights.o, DIM), residual = add(xs[last], projected);
     const norm2 = rms(residual), pre = mul(norm2.y, weights.f1, HIDDEN), hidden = pre.map(gelu);
     const final = add(residual, mul(hidden, weights.f2, DIM));
     const logits = vocab.map((_, i) => dot(final, weights.out.slice(i * DIM, (i + 1) * DIM)) + weights.bias[i]);
-    return { ids, xs, norms, ns, last, q, ks, vs, attention, mix, residual, norm2, pre, hidden, final, probs: softmax(logits) };
+    return { ids, xs, norms, ns, last, q, ks, vs, scores, attention, mix, projected, residual, norm2, pre, hidden, final, logits, probs: softmax(logits) };
   }
   function gradients(ids, target) {
     const c = forward(ids), grad = Object.fromEntries(Object.entries(weights).map(([k, v]) => [k, zeros(v.length)]));
@@ -82,8 +82,11 @@ export function createNeural(seed = 173) {
         total += loss; normTotal += norm; count++; updates++;
       }
       lastLoss = count ? total / count : null;
-      history.push({ epoch: epoch + 1, loss: lastLoss, gradientNorm: count ? normTotal / count : 0, updates, targets: count,
-        changes: groups.map(([key, label], i) => ({ label, before: before[i], values: weights[key].slice(0, 24) })),
+      // 当てっこの見本: 最初の会話のまん中あたりで、正しい次の文字に付けた確率
+      const sample = encoded.find(ids => ids.length > 2), at = sample ? Math.min(sample.length - 1, Math.max(2, Math.ceil(sample.length / 2))) : 0;
+      const quiz = sample ? { context: sample.slice(Math.max(0, at - 4), at).map(id => vocab[id]), answer: vocab[sample[at]], p: forward(sample.slice(Math.max(0, at - WINDOW), at)).probs[sample[at]] } : null;
+      history.push({ epoch: epoch + 1, loss: lastLoss, quiz, gradientNorm: count ? normTotal / count : 0, updates, targets: count,
+        changes: groups.map(([key, label], i) => ({ label, kind: 'tune', before: before[i], values: weights[key].slice(0, 24) })),
         matrices: [weights.q.slice(0, 144), weights.f1.slice(0, 144), weights.out.slice(-144)] });
     }
     learned ||= encoded.some(s => s.length > 1);
@@ -106,16 +109,24 @@ export function createNeural(seed = 173) {
     vocab = [...data.vocab]; weights = structuredClone(data.weights); updates = data.updates ?? 0; lastLoss = data.lastLoss; learned = !!data.learned; state = data.state >>> 0; return true;
   }
   return { encode, predict, train, snapshot, restore, gradients, forward,
+    // 画面で再生するための記録。計算済みの値を写すだけで、ここで別の計算はしない。
     inspect: tokens => {
-      const ids = encode(tokens).slice(-WINDOW), c = forward(ids);
-      return { tokens: tokens.slice(-WINDOW), encoded: ids.map(i => vocab[i]), weights: c.attention,
+      const ids = encode(tokens).slice(-WINDOW), c = forward(ids), id = c.ids[c.last];
+      const encoded = c.ids.map(i => vocab[i]);
+      // predict と同じ候補のまとめ方（話者記号を除き、終わりの 2 種を 1 つにする）で得点を並べる
+      const scored = vocab.map((token, i) => ({ token, score: c.logits[i] })).filter((_, i) => i >= SPECIAL.length);
+      scored.push({ token: '■', score: Math.log(Math.exp(c.logits[1]) + Math.exp(c.logits[4])) });
+      const shares = softmax(scored.map(s => s.score));
+      const candidates = scored.map((s, i) => ({ ...s, p: shares[i] })).sort((a, b) => b.p - a.p).slice(0, 5);
+      return { tokens: tokens.slice(-WINDOW), encoded, weights: c.attention,
         stages: [
-          { label: '埋め込み + 位置', values: c.xs[c.last] },
-          { label: 'RMSNorm → Q・K・V', values: c.q },
-          { label: '注意の重みで合成', values: c.mix },
-          { label: '投影 + 残差', values: c.residual },
-          { label: 'RMSNorm → MLP・GELU', values: c.hidden },
-          { label: 'MLP + 残差 → 出力', values: c.final },
+          { label: '埋め込み + 位置', kind: 'add', values: c.xs[c.last], token: encoded[c.last], position: c.last,
+            a: weights.embed.slice(id * DIM, (id + 1) * DIM), b: weights.pos.slice(c.last * DIM, (c.last + 1) * DIM) },
+          { label: 'RMSNorm → Q・K・V', kind: 'match', values: c.q, tokens: encoded, scores: c.scores, weights: c.attention },
+          { label: '注意の重みで合成', kind: 'mix', values: c.mix, tokens: encoded, weights: c.attention, parts: c.vs },
+          { label: '投影 + 残差', kind: 'add', values: c.residual, a: c.xs[c.last], b: c.projected },
+          { label: 'RMSNorm → MLP・GELU', kind: 'gate', values: c.hidden, before: c.pre },
+          { label: 'MLP + 残差 → 出力', kind: 'score', values: c.final, candidates },
         ] };
     },
     get updates() { return updates; }, get lastLoss() { return lastLoss; } };

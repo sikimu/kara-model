@@ -490,7 +490,7 @@ export async function createStage(root, model) {
   let interactive = false;
   // Idle strolling is frame-driven, so an action can take control immediately.
   let idleTime = 0, idleFrom = null, idleTo = null, idleLeg = 0, idleLast = 0;
-  const stroll = [new THREE.Vector3(-.9, 0, .8), new THREE.Vector3(.4, 0, -.7), new THREE.Vector3(1.1, 0, .5), P.home];
+  const stroll = [new THREE.Vector3(-1.7, 0, 1), new THREE.Vector3(-.6, 0, -1), new THREE.Vector3(1.6, 0, -.5), new THREE.Vector3(1.7, 0, 1.4), P.home];
   room.onFrame(t => {
     const dt = idleLast ? Math.min(1, t - idleLast) : 0; idleLast = t;
     const allowed = interactive && !mind.isOpen && !petting && !actor.lying && !root.parentElement.querySelector('.dock:not([hidden]), .settings[open]');

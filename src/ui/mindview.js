@@ -5,7 +5,8 @@
 import { FONT, roundRect } from './room.js';
 import { sound } from './sound.js';
 import { BOS, EOS, MAX_OUTPUT, MEMORY_CAPACITY, memoryText } from '../model/model.js';
-import { createNeuralView } from './neural-view.js';
+import { createNeuralView, travelLength } from './neural-view.js';
+import { unitCount } from './neural-explanation.js';
 
 const SLOTS = [
   ['tokenizer', '切り方'],
@@ -1002,34 +1003,50 @@ export function createMindView(root, room, model) {
     if (model.chips.predictor.id === 'predictor-transformer') {
       ambientStep = step > 0 ? step : ambientStep;
       canvas.dataset.phase = ev.type;
+      v.phase = ev.type;
       let carried = false;
-      const carry = async (token, from, to) => {
+      // 歩く時間は道のりに合わせる。札はかばんにまとめて入れて運べる。
+      const strides = (from, to) => 2 + Math.min(7, travelLength(from, to) / 4.5);
+      const walkTo = async (to) => {
+        const at = v.courier?.tos?.at(-1) ?? v.courier?.to;
+        if (!at || JSON.stringify(at) === JSON.stringify(to)) return;
+        v.courier = { token: null, from: at, to, k: 0 };
+        canvas.dataset.carry = 'walking';
+        await animate(step * strides(at, to), k => { v.courier.k = k; });
+      };
+      const carryMany = async (tokens, froms, tos) => {
         if (carried) await gate();
         carried = true;
-        if (v.courier?.to && JSON.stringify(v.courier.to) !== JSON.stringify(from)) {
-          v.courier = { token: null, from: v.courier.to, to: from, k: 0 };
-          await animate(step * 2, k => { v.courier.k = k; });
-        }
-        v.courier = { token, from, to, k: 0 };
-        await animate(step * 3, k => {
+        await walkTo(froms[0]);
+        const pack = tokens.length > 1 ? .3 : .2;
+        v.courier = { tokens, froms, tos, k: 0 };
+        await animate(step * (strides(froms.at(-1), tos[0]) + 1 + tokens.length * .7), k => {
           v.courier.k = k;
-          canvas.dataset.carry = k < .2 ? 'packing' : k > .8 ? 'unpacking' : 'walking';
+          canvas.dataset.carry = k < pack ? 'packing' : k > 1 - pack ? 'unpacking' : 'walking';
+          if (!(canvas.dataset.carrySeen ?? '').includes(canvas.dataset.carry)) canvas.dataset.carrySeen = `${canvas.dataset.carrySeen ?? ''} ${canvas.dataset.carry}`;
         });
-        v.courier = { token: null, from: to, to, k: 1 };
+        v.courier = { token: null, from: tos.at(-1), to: tos.at(-1), k: 1 };
         delete canvas.dataset.carry;
       };
+      const carry = (token, from, to) => token == null ? walkTo(to) : carryMany([token], [from], [to]);
       const operate = async (stages) => {
         v.stages = []; v.completedStage = -1;
         for (let i = 0; i < stages.length; i++) {
-          const from = v.courier?.to ?? { lane: 'work', index: 0 };
           v.packet = v.mode === 'infer' && i > 0 ? stages[i - 1].values : null;
-          await carry(null, from, { lane: 'work', index: i });
+          await walkTo({ lane: 'work', index: i });
+          delete canvas.dataset.carry;
           v.packet = null;
           await gate();
           v.stages[i] = stages[i]; v.operation = { index: i, k: 0 };
           canvas.dataset.operation = String(i);
-          await animate(step * 3, k => { v.operation.k = k; });
+          const count = unitCount(stages[i]);
+          for (let j = 0; j < count; j++) {
+            if (j) await gate();
+            await animate(step * (stages[i].kind === 'tune' ? 1.6 : 2), k => { v.operation.k = (j + k) / count; });
+          }
           v.completedStage = i;
+          v.courier = { token: null, from: { lane: 'work', index: i }, to: { lane: 'work', index: i }, k: 1 };
+          v.operation = null; delete canvas.dataset.operation;
         }
         v.operation = null; delete canvas.dataset.operation;
       };
@@ -1037,38 +1054,52 @@ export function createMindView(root, room, model) {
         v.heard = [...ev.tokens]; v.source = [...ev.tokens]; v.sourceAt = 0;
       }
       if (ev.type === 'attention') {
-        v.attention = ev; v.source = ev.tokens; v.contextCards = []; v.rows = []; v.visibleRows = []; v.workToken = null;
-        for (let index = 0; index < ev.tokens.length; index++) {
-          v.sourceAt = index;
-          await carry(ev.tokens[index], { lane: 'heard', index: Math.min(index, 7) }, { lane: 'attention', index });
-          v.contextCards.push(ev.tokens[index]);
+        const first = !v.attention;
+        v.attention = ev; v.rows = []; v.visibleRows = []; v.workToken = null; v.lottery = null; v.picked = null;
+        const last = ev.tokens.length - 1;
+        if (first) {
+          // 届いたことばを、話者や交代の札といっしょに文脈の部屋へ並べる
+          v.source = ev.tokens; v.sourceAt = 0; v.contextCards = [];
+          for (let at = 0; at < ev.tokens.length; at += 8) {
+            const part = ev.tokens.slice(at, at + 8);
+            await carryMany(part, part.map((_, i) => ({ lane: 'heard', index: at + i })), part.map((_, i) => ({ lane: 'attention', index: at + i })));
+            v.contextCards.push(...part);
+          }
+        } else {
+          // 2 文字め以降: いま出した文字を文脈に加える
+          v.contextCards = ev.tokens.slice(0, -1);
+          await carry(ev.tokens[last], { lane: 'output', index: Math.max(0, v.out.length - 1) }, { lane: 'attention', index: last });
+          v.contextCards.push(ev.tokens[last]);
         }
-        for (let index = 0; index < ev.tokens.length; index++) {
-          v.attentionFocus = index;
-          await carry(ev.tokens[index], { lane: 'attention', index }, { lane: 'work', index: 0 });
-          v.workToken = ev.tokens[index]; v.workAt = 0;
-        }
+        // いちばん新しい札を ① の部屋へ持っていく
+        v.attentionFocus = last;
+        await carry(ev.tokens[last], { lane: 'attention', index: last }, { lane: 'work', index: 0 });
+        v.workToken = ev.tokens[last]; v.workAt = 0;
         v.attentionFocus = null;
         await operate(ev.stages ?? []);
       }
       if (ev.type === 'probs') {
         v.rows = []; v.visibleRows = []; v.picked = null;
         const rows = [...ev.candidates].sort((a, b) => b.p - a.p).slice(0, 5);
-        for (let index = 0; index < rows.length; index++) {
-          v.workToken = rows[index].token; v.workAt = 5;
-          await carry(rows[index].token, { lane: 'work', index: 5 }, { lane: 'candidates', index });
-          v.rows.push(rows[index]); v.visibleRows.push(rows[index]); v.workToken = null;
-        }
-        v.rows = ev.candidates;
+        await carryMany(rows.map(r => r.token), rows.map((_, slot) => ({ lane: 'work', index: 5, slot, count: rows.length })), rows.map((_, index) => ({ lane: 'candidates', index })));
+        // 候補の部屋で、点を確率（合計 100%）に直す
+        v.visibleRows = [...rows]; v.rows = ev.candidates; v.share = 0;
+        canvas.dataset.share = 'growing';
+        await animate(step * 5, k => { v.share = k; });
+        delete canvas.dataset.share;
       }
       if (ev.type === 'pick') {
+        await walkTo({ lane: 'roulette' });
+        delete canvas.dataset.carry;
+        v.lottery = { r: ev.r, k: 0, token: ev.token };
+        await animate(step * 10, k => { v.lottery.k = k; });
+        v.picked = ev.token;
+        await animate(step * 2);
         if (!v.visibleRows.some(r => r.token === ev.token)) {
           const selected = v.rows.find(r => r.token === ev.token);
-          v.workToken = ev.token; v.workAt = 5;
-          await carry(ev.token, { lane: 'work', index: 5 }, { lane: 'candidates', index: 4 });
+          await carry(ev.token, { lane: 'roulette' }, { lane: 'candidates', index: 4 });
           v.visibleRows[4] = selected; v.workToken = null;
         }
-        await animate(step * 2, k => { v.rollIndex = Math.floor(k * 15) % Math.min(5, v.rows.length); });
         v.rollIndex = null; v.picked = ev.token;
       }
       if (ev.type === 'emit') {
@@ -1080,20 +1111,23 @@ export function createMindView(root, room, model) {
       }
       if (ev.type === 'end') v.endText = END_TEXT[ev.reason];
       if (ev.type === 'gradient') {
-        if (v.contextCards?.length) {
-          const index = Math.max(0, v.contextCards.findLastIndex(token => !token.startsWith('<')));
+        v.epoch = ev.epoch;
+        if (v.contextCards?.length && ev.epoch === 1) {
+          const index = Math.max(0, v.contextCards.findLastIndex(token => token != null && !token.startsWith('<')));
           await carry(v.contextCards[index], { lane: 'attention', index }, { lane: 'work', index: 0 });
-          v.workToken = v.contextCards[index]; v.workAt = 0;
         }
+        v.workToken = null;
         await operate(ev.changes ?? []);
         (v.losses ??= []).push(ev); v.matrices = ev.matrices;
       }
       if (ev.type === 'replay') {
         v.seq = ev.tokens; v.source = ev.tokens; v.contextCards = []; v.workToken = null;
-        for (let i = 0; i < ev.tokens.length; i++) {
-          v.seqAt = i; v.sourceAt = i;
-          await carry(ev.tokens[i], { lane: 'heard', index: Math.min(i, 7) }, { lane: 'attention', index: i % 24 });
-          v.contextCards[i % 24] = ev.tokens[i];
+        for (let at = 0; at < ev.tokens.length; at += 8) {
+          v.seqAt = at; v.sourceAt = at;
+          if (at % 24 === 0) v.contextCards = [];
+          const part = ev.tokens.slice(at, at + 8);
+          await carryMany(part, part.map((_, i) => ({ lane: 'heard', index: (at + i) % 24 })), part.map((_, i) => ({ lane: 'attention', index: (at + i) % 24 })));
+          part.forEach((token, i) => { v.contextCards[(at + i) % 24] = token; });
         }
       }
       await animate(step * (ev.type === 'gradient' ? 2 : .8));

@@ -2,9 +2,11 @@
 
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { applySurface, boxUV } from './textures.js';
 
-const DAY = { hemi: 1.9, sun: 2.4, lamp: 0 };
-const NIGHT = { hemi: 0.45, sun: 0.2, lamp: 14 };
+const DAY = { hemi: 0.75, sun: 2.5, lamp: 0, environment: 0.4 };
+const NIGHT = { hemi: 0.16, sun: 0.16, lamp: 14, environment: 0.08 };
 export const FONT = '"Yu Gothic UI", "Hiragino Sans", "Noto Sans JP", sans-serif';
 
 export function roundRect(g, x, y, w, h, r) {
@@ -41,7 +43,7 @@ export function makeLabel(text, { size = 0.36, color = '#333', bg = '#fff', bord
 
   const map = new THREE.CanvasTexture(canvas);
   map.colorSpace = THREE.SRGBColorSpace;
-  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map, transparent: true, depthTest: false }));
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map, transparent: true, depthTest: false, toneMapped: false }));
   sprite.renderOrder = 10;
   sprite.userData.aspect = w / h;
   sprite.userData.size = size;
@@ -61,7 +63,7 @@ function createBoard(face) {
   map.colorSpace = THREE.SRGBColorSpace;
   const mesh = new THREE.Mesh(
     new THREE.PlaneGeometry(face.scale.x, face.scale.y),
-    new THREE.MeshBasicMaterial({ map }),
+    new THREE.MeshBasicMaterial({ map, toneMapped: false }),
   );
   mesh.position.copy(face.position);
 
@@ -107,39 +109,53 @@ export async function createRoom(root) {
   root.append(skyDay, skyNight);
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  const compactGPU = window.matchMedia('(pointer: coarse)').matches;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, compactGPU ? 1.5 : 2));
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.NeutralToneMapping;
+  renderer.toneMappingExposure = 1.0;
   renderer.setClearColor(0x000000, 0);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   root.append(renderer.domElement);
 
   const scene = new THREE.Scene();
+  // 起動時だけ生成する面光源。追加のポスト処理パスは不要。
+  const studio = new RoomEnvironment();
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const environment = pmrem.fromScene(studio, 0.04);
+  scene.environment = environment.texture;
+  scene.environmentIntensity = DAY.environment;
+  studio.dispose();
+  pmrem.dispose();
   const camera = new THREE.PerspectiveCamera(36, 1, 0.1, 100);
-  const hemi = new THREE.HemisphereLight(0xffffff, 0xc9b99a, DAY.hemi);
+  const hemi = new THREE.HemisphereLight(0xe7f1ff, 0xbba184, DAY.hemi);
   const sun = new THREE.DirectionalLight(0xfff4e0, DAY.sun);
   sun.position.set(-7, 11, 8);
   sun.target.position.set(-3, 0, 0);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
+  const shadowSize = compactGPU ? 1024 : 2048;
+  sun.shadow.mapSize.set(shadowSize, shadowSize);
   sun.shadow.camera.left = -9;
   sun.shadow.camera.right = 9;
   sun.shadow.camera.top = 8;
   sun.shadow.camera.bottom = -8;
   sun.shadow.camera.near = 1;
   sun.shadow.camera.far = 40;
-  sun.shadow.bias = -0.0004;
-  sun.shadow.normalBias = 0.03;
+  sun.shadow.bias = -0.00015;
+  sun.shadow.normalBias = 0.02;
   const lamp = new THREE.PointLight(0xffc880, 0, 9, 1.6);
   scene.add(hemi, sun, sun.target, lamp);
 
   const loader = new GLTFLoader();
   const version = document.querySelector('meta[name="app-version"]')?.content ?? 'dev';
-  const [roomGltf, charGltf, npcGltf, sleepGltf, bagGltf] = await Promise.all([
+  const [roomGltf, charGltf, npcGltf, sleepGltf, bagGltf, mindGltf] = await Promise.all([
     loader.loadAsync(`./assets/room.glb?v=${version}`),
     loader.loadAsync(`./assets/character.glb?v=${version}`),
     loader.loadAsync(`./assets/npc.glb?v=${version}`),
     loader.loadAsync(`./assets/sleep-mobile.glb?v=${version}`),
     loader.loadAsync(`./assets/courier-bag.glb?v=${version}`),
+    loader.loadAsync(`./assets/mind-space.glb?v=${version}`),
   ]);
   for (const gltf of [roomGltf, charGltf, npcGltf]) {
     gltf.scene.traverse((o) => {
@@ -149,6 +165,16 @@ export async function createRoom(root) {
       o.receiveShadow = !far;
     });
   }
+  // 家と広場の材質に、その場で描いた模様（木目・しっくい・織物・芝・砂）を貼る
+  const surfaces = [[/^(wood|wood_dark|door_wood)$/, 'wood', 0.4, 0.5, true], [/^wall$/, 'plaster', 0.3, 0.5, false], [/^(rug|rug_edge)$/, 'fabric', 0.5, 1.6, false],
+    [/^(grass|grass_dark)$/, 'grass', 0.6, 0.5, false], [/^(stone|stone_in|town_ground)$/, 'sand', 0.4, 0.5, false]];
+  const textured = new Set();
+  roomGltf.scene.traverse((o) => {
+    const surface = o.isMesh && surfaces.find(([pattern]) => pattern.test(o.material.name));
+    if (!surface) return;
+    if (!o.geometry.userData.boxUV) { boxUV(o.geometry, surface[3], surface[4]); o.geometry.userData.boxUV = true; }
+    if (!textured.has(o.material)) { applySurface(o.material, surface[1], { bump: surface[2] }); textured.add(o.material); }
+  });
   scene.add(roomGltf.scene, charGltf.scene);
   scene.updateMatrixWorld(true);
 
@@ -162,8 +188,8 @@ export async function createRoom(root) {
   // カメラの構図。house: 家だけ、plaza: まちの ひろば。tall は縦長の画面（スマホ）のときの構図
   const SHOTS = {
     house: {
-      wide: { target: new THREE.Vector3(0, 1.75, 0.1), halfW: 4.8, halfH: 4.0 },
-      tall: { target: new THREE.Vector3(0, 1.75, 0.1), halfW: 4.35, halfH: 4.0 },
+      wide: { target: new THREE.Vector3(0, 1.75, 0.1), halfW: 5.6, halfH: 4.0 },
+      tall: { target: new THREE.Vector3(0, 1.75, 0.1), halfW: 5.15, halfH: 4.0 },
     },
     plaza: {
       wide: { target: new THREE.Vector3(-4.6, 1.3, -0.3), halfW: 5.6, halfH: 4.3 },
@@ -297,6 +323,7 @@ export async function createRoom(root) {
     hemi.intensity = THREE.MathUtils.lerp(DAY.hemi, NIGHT.hemi, k);
     sun.intensity = THREE.MathUtils.lerp(DAY.sun, NIGHT.sun, k);
     lamp.intensity = THREE.MathUtils.lerp(DAY.lamp, NIGHT.lamp, k);
+    scene.environmentIntensity = THREE.MathUtils.lerp(DAY.environment, NIGHT.environment, k);
   }
   function fadeNight(to, ms) {
     const from = nightNow;
@@ -312,6 +339,7 @@ export async function createRoom(root) {
     get textScale() { return isTall() ? 1.6 : 1; },
     character: charGltf.scene,
     courierBag: bagGltf.scene,
+    mindSpace: mindGltf.scene,
     npc: npcGltf.scene, // 広場で話す人のひな形（場面には足していない）
     sleepMobile: sleepGltf.scene,
     board,

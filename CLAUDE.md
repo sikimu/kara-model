@@ -34,7 +34,10 @@ src/model/          モデル本体・チップ・トレース（UI 非依存）
 src/model/chips/    チップ（1 ファイル 1 チップ）
 src/ui/             画面と演出（3D の家・広場と頭の中の画面）
 src/ui/stage.js     家・広場の演出と頭の中への切り替え
-src/ui/mindview.js  頭の中の画面（2D canvas で推論・学習・地図を表示）
+src/ui/mindview.js  頭の中の画面（トレースの再生。実験用の集計モデルは 2D canvas）
+src/ui/neural-view.js  頭の中の 3D の部屋（Transformer の計算を部屋ごとに見せる）
+src/ui/neural-explanation.js  部屋ごとの説明文と手順の区切り（DOM に触れない）
+src/ui/textures.js  その場で描く木目・しっくい・織物・芝の模様
 src/save.js         セーブとロード
 assets/character.glb  Blender から書き出したキャラクター
 assets/room.glb       Blender から書き出した家・広場・小物、立ち位置の目印
@@ -57,7 +60,7 @@ tools/check.mjs       動作確認（ヘッドレス Chrome で通しで動か�
 
 ## 動作確認
 
-ES Modules は `file://` では動かない。VS Code の Live Server で `index.html` を開く。
+ES Modules は `file://` では動かない。`node tools/serve.mjs` で起動し、`http://localhost:8765/` を開く（終了は Ctrl+C）。
 
 変更したら `node tools/check.mjs` を実行する（`--mobile` で縦長画面とタップ操作、`--slow` でふつうの速度の演出を確認できる）。
 すべて OK になり、`tools/out/` の画面写真で見た目を確かめてからコミットする。ユーザーに確認手順を頼まない。
@@ -71,10 +74,10 @@ glb を作り直すとき: `blender -b -P blender/build_assets.py`（Blender 5.3
 - チップはLLMの学習・推論方式を表す。LLMで使わない独自方式や集計だけのモデルは「実験用」と区別する。実装していない方式を名前だけで選べるようにしない。
 - 対話は話者と発言順を保ったまとまりで保存する。文字／単語のトークン化と、会話を保存する単位を混同しない。
 - 文字である必要のない演出は、Blenderの立体や適切な画像で表現する。世界観に合わない括弧書きの解説を常設しない。小物のモデル品質も改善してよい。
-- このリポジトリへの通常のpushは毎回確認せず進める（ユーザーが改めて明示）。
+- まずローカル確認先をユーザーに提示し、見た目と動きを調整してからpush・公開する（2026-11-14の最新指示）。ローカル確認待ちの変更を自動公開しない。
 - 頭の中ではコトが文字や単語を選び、かばんにしまい、歩いて運んで取り出す。眺めるゲームなので、1 トークンに時間がかかってよい。文字／単語の単位はトークナイザーに従い、ニューラルネットだから単語単位になるとは扱わない。
 
-- 動作確認、コミット、push まで任されている。公開先は GitHub Pages（https://sikimu.github.io/kara-model/）
+- 動作確認とコミットを進め、ローカルでの調整が済んでからpushする。公開先は GitHub Pages（https://sikimu.github.io/kara-model/）
 - トークン節約のため Codex CLI を使ってよい（`codex exec --sandbox workspace-write -C . "依頼"`）。監督は Claude が行い、差分と画面を確認してから取り込む
   - 向いている仕事: 画像生成（デザイン画）、範囲の決まった実装（触ってよいファイルを明記する）、ドキュメント更新
   - 並行で走らせるときは、触るファイルが重ならないように分ける。10 分以上変更が出なければ止める

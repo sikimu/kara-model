@@ -41,7 +41,7 @@ if (!PUBLISHED) server.listen(PORT, '127.0.0.1');
 
 const profile = path.join(os.tmpdir(), `kara-check-${process.pid}`);
 const chrome = spawn(CHROME, ['--headless=new', `--remote-debugging-port=${DEBUG_PORT}`, `--user-data-dir=${profile}`,
-  '--no-first-run', '--disable-gpu', '--autoplay-policy=no-user-gesture-required', 'about:blank'], { stdio: 'ignore' });
+  '--no-first-run', ...(process.argv.includes('--software') ? ['--disable-gpu'] : ['--use-angle=d3d11', '--ignore-gpu-blocklist', '--enable-gpu']), '--autoplay-policy=no-user-gesture-required', 'about:blank'], { stdio: 'ignore' });
 
 const problems = [];
 const logs = [];
@@ -168,9 +168,9 @@ try {
     await evaluate(`(() => { document.querySelector('.talk-form input').value = 'やあ'; document.querySelector('.talk-form').requestSubmit(); })()`);
     for (const phase of ['packing', 'walking', 'unpacking']) {
       let found = false;
-      for (let i = 0; i < 150; i++) {
-        if (await evaluate(`document.querySelector('.mind-view').dataset.carry === '${phase}'`)) { found = true; break; }
-        await sleep(100);
+      for (let i = 0; i < 300; i++) {
+        if (await evaluate(`(document.querySelector('.mind-view').dataset.carrySeen ?? '').includes('${phase}')`)) { found = true; break; }
+        await sleep(50);
       }
       expect(`ことばを ${phase} する`, found);
       if (found) await shot(`16-mind-${phase}.png`);
@@ -181,13 +181,67 @@ try {
       await sleep(100);
     }
     await shot('17-mind-attention.png');
-    let operated = false;
+    expect('初期状態は説明なし', await evaluate(`document.querySelector('.mind-explain-toggle').getAttribute('aria-pressed') === 'false' && document.querySelector('.mind-explanation').hidden`));
+    await clickOn('.mind-explain-toggle');
+    expect('説明を再生中に表示できる', await evaluate(`document.querySelector('.mind-explain-toggle').getAttribute('aria-pressed') === 'true' && !document.querySelector('.mind-explanation').hidden`));
     for (let i = 0; i < 900; i++) {
-      if (await evaluate(`document.querySelector('.mind-view').dataset.operation === '5'`)) { operated = true; break; }
+      if (await evaluate(`document.querySelector('.mind-view').dataset.operation === '0'`)) break;
       await sleep(100);
     }
-    expect('推論の実ベクトルを6か所の作業台で再生する', operated);
+    await sleep(550);
+    expect('作業中は手元へ寄り、説明が作業に対応する', await evaluate(`document.querySelector('.mind-view').dataset.view === 'work-closeup' && document.querySelector('.mind-explanation h2').textContent.includes('文字を 数に')`));
+    await clickOn('.pause-button');
+    await sleep(900);
+    const pausedValue = await evaluate(`document.querySelector('.mind-view').dataset.manipulating`);
+    await sleep(700);
+    expect('机上の作業も値ごとに一時停止する', pausedValue !== undefined && pausedValue === await evaluate(`document.querySelector('.mind-view').dataset.manipulating`));
+    await clickOn('.step-button');
+    await sleep(900);
+    expect('コマ送りでデータを一つ扱う', Number(await evaluate(`document.querySelector('.mind-view').dataset.manipulating`)) === Number(pausedValue) + 1);
+    await clickOn('.mind-camera button:nth-child(2)');
+    await sleep(300);
+    expect('作業中も自由視点を維持できる', await evaluate(`document.querySelector('.mind-view').dataset.view === 'free'`));
+    await clickOn('.mind-camera button');
+    await shot('18-work-explained.png');
+    await clickOn('.mind-explain-toggle');
+    await clickOn('.pause-button');
+    expect('説明を隠しても手元の作業が続く', await evaluate(`document.querySelector('.mind-explanation').hidden && document.querySelector('.mind-view').dataset.manipulating !== undefined`));
+    await shot('18-work-quiet.png');
+    let holding = false;
+    for (let i = 0; i < 600; i++) {
+      if (await evaluate(`document.querySelector('.mind-view').dataset.hand === 'holding'`)) { holding = true; break; }
+      await sleep(50);
+    }
+    console.log(`    描画の質: ${await evaluate(`document.querySelector('.mind-view').dataset.quality ?? 'full'`)}`);
+    expect('コトがデータを持ち上げて扱う時間が見える', holding);
+    await shot('18-work-hand.png');
+    await clickOn('.mind-explain-toggle');
+    let operated = 0;
+    for (let room = 1; room <= 5; room++) {
+      for (let i = 0; i < 900; i++) {
+        if (await evaluate(`document.querySelector('.mind-view').dataset.operation === '${room}'`)) { operated++; break; }
+        await sleep(100);
+      }
+      await sleep(1500);
+      await shot(`18-room-${room + 1}.png`);
+    }
+    expect('推論の実ベクトルを6つの部屋で再生する', operated === 5);
+    expect('部屋を出入りするときにドアが開く', await evaluate(`Number(document.querySelector('.mind-view').dataset.doors) >= 10`));
     await shot('18-mind-operation.png');
+    let spinning = false;
+    for (let i = 0; i < 600; i++) {
+      if (await evaluate(`document.querySelector('.mind-view').dataset.roulette === 'spinning'`)) { spinning = true; break; }
+      await sleep(100);
+    }
+    expect('抽選の部屋でルーレットが回る', spinning);
+    await shot('19-roulette-spinning.png');
+    let landed = false;
+    for (let i = 0; i < 100; i++) {
+      if (await evaluate(`document.querySelector('.mind-view').dataset.roulette === 'landed'`)) { landed = true; break; }
+      await sleep(100);
+    }
+    expect('確率区間・乱数・実際の抽選結果が一致する', landed && await evaluate(`document.querySelector('.mind-view').dataset.rouletteMatch === 'true'`));
+    await shot('19-roulette-landed.png');
     await clickOn('.skip-button'); await done();
   } else if (process.argv.includes('--sleep-preview')) {
     await evaluate(`(() => { kara.hear('おやすみ'); const slider = document.querySelector('.speed-slider'); slider.value = '0'; slider.dispatchEvent(new Event('input')); })()`);
@@ -327,8 +381,12 @@ try {
     await send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: 800, y: 450, deltaX: 0, deltaY: -300 });
   }
   await shot('8-mind-orbit.png');
+  await sleep(700);
   await clickOn('.mind-camera button');
+  await sleep(400);
   expect('自由視点からコト追従に戻せる', await evaluate(`document.querySelector('.mind-camera button').getAttribute('aria-pressed') === 'true'`));
+  await clickOn('.mind-explain-toggle');
+  expect('説明モードを切り替えて保存する', await evaluate(`localStorage.getItem('kara-mind-explanations') === 'true' && !document.querySelector('.mind-explanation').hidden`));
   await clickOn('.home-button');
   await sleep(1200);
   expect('頭の中から戻ると操作できる', (await busy()) === false);
@@ -380,6 +438,7 @@ try {
   await clickOn('.chips .item-close');
   await load();
   expect('保存後はタイトル画面につづきからを表示する', await evaluate(`!document.querySelector('.title-screen').hidden && document.querySelector('.title-start').textContent === 'つづきから'`));
+  expect('説明モードも再読み込み後に残る', await evaluate(`document.querySelector('.mind-explain-toggle').getAttribute('aria-pressed') === 'true'`));
   await shot('13-continue.png');
   await clickOn('.title-start');
   s = await state();

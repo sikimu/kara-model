@@ -18,6 +18,12 @@ export function workFrame(stage, k) {
   return { index, phase, count };
 }
 
+// いま見せている手順。くわしく説明するために止まっている間は、置き終えた手順を指す。
+export function frameOf(stage, operation) {
+  const frame = workFrame(stage, operation.k);
+  return operation.hold != null ? { index: operation.hold, phase: 1, count: frame.count } : frame;
+}
+
 // tune の 1 手順（4 個ひと組）の中で、いちばん大きく動いた重み。
 export function tuneChange(stage, unit) {
   let best = unit * 4;
@@ -53,6 +59,21 @@ const steps = {
   score: ['⑥ 文字ごとに 点を つける', 'できあがった手がかりを、知っている文字1つずつと照らし合わせて点をつけます。点が高い文字ほど、次に来そうな文字です。このあと点を確率に直して、ルーレットで1つ選びます。'],
 };
 
+// くわしい説明モードで、置き終えた 1 手ごとに出す文。数は記録された計算結果そのもの。
+export function stepNote(stage, frame, index) {
+  const kind = stage.kind ?? 'tune', i = frame.index;
+  if (kind === 'add' && index === 0) return `いま置いたのは ${i + 1}本め。文字「${name(stage.token)}」の ${i + 1}番めの数 ${num(stage.a[i])} に、「文の ${stage.position + 1}番め」を表す数 ${num(stage.b[i])} を重ねて、${num(stage.values[i])} になりました。12本そろうと、「${name(stage.token)}が ${stage.position + 1}番めにある」ことを表す数の組になります。`;
+  if (kind === 'add') return `いま置いたのは ${i + 1}本め。①で作ったもとの数 ${num(stage.a[i])} に、③でまぜた手がかり ${num(stage.b[i])} を重ねて、${num(stage.values[i])} になりました。もとの数を捨てずに足すので、文字そのものの情報も残ります。`;
+  if (kind === 'match') return `「${name(stage.tokens[i])}」が、次の文字を当てる手がかりになりそうかを数にすると ${stage.scores[i].toFixed(2)} でした。全部の札の数を比べて割合に直すと ${pct(stage.weights[i])}。この割合の高さの台にのせました。`;
+  if (kind === 'mix') return `「${name(stage.tokens[i])}」が持つ12個の数に、見る割合 ${pct(stage.weights[i])} を掛けて、手前の列に足しました。割合が大きい札ほど、手前の列を大きく動かします。`;
+  if (kind === 'gate') return stage.before[i] < 0
+    ? `${num(stage.before[i])} はマイナスなので、しぼり機で ${num(stage.values[i])} まで小さくつぶれました。「この特徴は当てはまらない」という合図は弱めて通します。`
+    : `${num(stage.before[i])} はプラスなので、ほぼそのまま ${num(stage.values[i])} で通りました。「この特徴が当てはまる」という合図はそのまま次へ渡します。`;
+  if (kind === 'score') return `「${name(stage.candidates[i].token)}」の点は ${stage.candidates[i].score.toFixed(2)}。奥に並べた手がかりの12個の数と、「${name(stage.candidates[i].token)}」用に覚えている12個の数を、1つずつ掛けて足した値です。点が高いほど、次に来そうな文字です。`;
+  const c = tuneChange(stage, i), up = c.after > c.before;
+  return `この4個の目もりを、矢印の向きへ動かしました。いちばん動いたのは ${c.index + 1}番めで、${c.before.toFixed(4)} から ${c.after.toFixed(4)} へ（${up ? '大きく' : '小さく'}しました）。この向きは、後ろの部屋から届いた「はずれの知らせ」から計算したものです。`;
+}
+
 export function rouletteTurn(k, r) { return (3 + r) * (1 - (1 - Math.max(0, Math.min(1, k))) ** 3); }
 export function rouletteSector(rows, r) {
   let sum = 0;
@@ -61,6 +82,16 @@ export function rouletteSector(rows, r) {
 }
 
 export function explainNeural(v) {
+  if (v.holdNote) return v.holdNote;
+  if (v.quiz && !v.operation && !v.errorNote) {
+    const q = v.quiz, said = q.context.map(name).join('');
+    return { title: `れんしゅう ${v.epoch ?? 1} / 12 · 次の文字を 当ててみる`,
+      body: `聞いた会話の途中「${said}」までを見て、次の文字を予想しました。正解は「${name(q.answer)}」です。正解の文字に付けた確率が低いほど「はずれ」が大きい、と数えます。このはずれを小さくしていくのが学習です。`,
+      detail: `正解「${name(q.answer)}」に付けた確率 ${pct(q.p)} → はずれ ${pct(1 - q.p)}` };
+  }
+  if (v.errorNote && v.courier && !v.operation) return { title: 'はずれの知らせを 前の部屋へ',
+    body: '答えにいちばん近い⑥の部屋から①の部屋へ、計算とは逆向きに、はずれの知らせを運びます。部屋ごとに「この目もりをどちら向きにどれだけ動かせば、はずれが減るか」を計算して伝えます（誤差逆伝播）。',
+    detail: `赤い粒は伝わる向きのイメージです（粒の数や大きさは勾配の実数値ではありません）。見本の正解以外に付けた確率 ${pct(v.errorNote.size)}` };
   if (v.lottery && v.phase === 'pick') {
     const selected = rouletteSector(v.rows, v.lottery.r);
     return { title: v.lottery.k < 1 ? 'ルーレットで 次の文字を えらぶ' : `「${name(selected.token)}」に 止まった`,
@@ -68,18 +99,19 @@ export function explainNeural(v) {
       detail: v.lottery.k < 1 ? '針が止まる場所は、計算のときに引いた乱数で決まっています。回している間に引き直しはしません。' : `乱数 ${v.lottery.r.toFixed(4)} · この文字の確率 ${(selected.p * 100).toFixed(2)}%` };
   }
   if (v.operation) {
-    const stage = v.stages[v.operation.index], f = workFrame(stage, v.operation.k), kind = stage.kind ?? 'tune';
+    const stage = v.stages[v.operation.index], f = frameOf(stage, v.operation), kind = stage.kind ?? 'tune';
+    const step = v.operation.hold != null ? stepNote(stage, f, v.operation.index) : null;
     const at = `${f.index + 1} / ${f.count}`;
     if (kind === 'tune') {
       const c = tuneChange(stage, f.index);
       return {
         title: `れんしゅう ${v.epoch ?? 1} / 12 · 「${stage.label}」を ちょうせい`,
-        body: '聞いた会話の「次の文字」を当てる練習です。はずれた分だけ、次は当たりやすくなる向きへ、この部屋の道具の目もり（重み）を少しずつ動かします（誤差逆伝播と勾配降下）。棒はこの部屋の重みのうち先頭の24個で、1周分の調整の前と後を見せています。1例ごとの計算をすべて再生しているわけではありません。',
+        body: step ?? '届いた「はずれの知らせ」に合わせて、この部屋の道具の目もり（重み）を、はずれが減る向きへ少しずつ動かします（勾配降下）。矢印が動かす向き、うすい印が動かす前の高さです。棒はこの部屋の重みのうち先頭の24個で、1周分の調整の前と後を見せています。1例ごとの計算をすべて再生しているわけではありません。',
         detail: `${at} 組め · いちばん動いた重み ${c.index + 1}：${c.before.toFixed(4)} → ${c.after.toFixed(4)}`,
       };
     }
     const [title, body] = steps[kind === 'add' ? (v.operation.index === 0 ? 'add0' : 'add3') : kind];
-    return { title, body, detail: `${at}：${readout(stage, f)}` };
+    return { title, body: step ?? body, detail: `${at}：${readout(stage, f)}` };
   }
   if (v.phase === 'probs' && v.share != null && v.share < 1) return { title: '点を 確率に なおす', body: '⑥でつけた点を、全部足すと100%になる割合（確率）に直します。点が高い文字ほど、大きな割合をもらいます（softmax）。選び方チップが「温度」のときは、ここで割合のかたよりを強めたり弱めたりします。', detail: '表示は上位5つ。ルーレットにはすべての候補が乗ります。' };
   const t = v.courier;

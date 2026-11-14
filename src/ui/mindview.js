@@ -5,7 +5,7 @@
 import { FONT, roundRect } from './room.js';
 import { sound } from './sound.js';
 import { BOS, EOS, MAX_OUTPUT, MEMORY_CAPACITY, memoryText } from '../model/model.js';
-import { createNeuralView, travelLength } from './neural-view.js';
+import { createNeuralView, travelLength, tokenLabel } from './neural-view.js';
 import { unitCount } from './neural-explanation.js';
 
 const SLOTS = [
@@ -1007,6 +1007,15 @@ export function createMindView(root, room, model) {
       let carried = false;
       // 歩く時間は道のりに合わせる。札はかばんにまとめて入れて運べる。
       const strides = (from, to) => 2 + Math.min(7, travelLength(from, to) / 4.5);
+      // くわしい説明モード: 置き終えたところで止まり、「つぎへ」を待つ。note は運んだあとの説明
+      let skipping = false;
+      const hold = async (note = null) => {
+        if (skipping || step === 0 || !neuralView.detail) return;
+        v.holdNote = note;
+        const reason = await neuralView.waitNext();
+        v.holdNote = null;
+        if (reason === 'skip' || reason === 'close') skipping = true;
+      };
       const walkTo = async (to) => {
         const at = v.courier?.tos?.at(-1) ?? v.courier?.to;
         if (!at || JSON.stringify(at) === JSON.stringify(to)) return;
@@ -1028,11 +1037,13 @@ export function createMindView(root, room, model) {
         v.courier = { token: null, from: tos.at(-1), to: tos.at(-1), k: 1 };
         delete canvas.dataset.carry;
       };
+      const said = tokens => tokens.map(tokenLabel).join('・');
       const carry = (token, from, to) => token == null ? walkTo(to) : carryMany([token], [from], [to]);
-      const operate = async (stages) => {
+      // order: 部屋をまわる順。推論は ①→⑥、学習は はずれの知らせを持って ⑥→①
+      const operate = async (stages, order = stages.map((_, i) => i)) => {
         v.stages = []; v.completedStage = -1;
-        for (let i = 0; i < stages.length; i++) {
-          v.packet = v.mode === 'infer' && i > 0 ? stages[i - 1].values : null;
+        for (const i of order) {
+          v.packet = v.errorNote ? Array(12).fill(1) : v.mode === 'infer' && i > 0 ? stages[i - 1].values : null;
           await walkTo({ lane: 'work', index: i });
           delete canvas.dataset.carry;
           v.packet = null;
@@ -1043,6 +1054,8 @@ export function createMindView(root, room, model) {
           for (let j = 0; j < count; j++) {
             if (j) await gate();
             await animate(step * (stages[i].kind === 'tune' ? 1.6 : 2), k => { v.operation.k = (j + k) / count; });
+            // 学習の目もり直しは、部屋ごとに 1 回だけ止まる
+            if (stages[i].kind !== 'tune' || j === count - 1) { v.operation.hold = j; await hold(); v.operation.hold = null; }
           }
           v.completedStage = i;
           v.courier = { token: null, from: { lane: 'work', index: i }, to: { lane: 'work', index: i }, k: 1 };
@@ -1051,7 +1064,7 @@ export function createMindView(root, room, model) {
         v.operation = null; delete canvas.dataset.operation;
       };
       if (ev.type === 'tokenize') {
-        v.heard = [...ev.tokens]; v.source = [...ev.tokens]; v.sourceAt = 0;
+        v.heard = [...ev.tokens]; v.source = [...ev.tokens]; v.sourceAt = 0; v.sourceTaken = 0;
       }
       if (ev.type === 'attention') {
         const first = !v.attention;
@@ -1059,23 +1072,26 @@ export function createMindView(root, room, model) {
         const last = ev.tokens.length - 1;
         if (first) {
           // 届いたことばを、話者や交代の札といっしょに文脈の部屋へ並べる
-          v.source = ev.tokens; v.sourceAt = 0; v.contextCards = [];
+          v.source = ev.tokens; v.sourceAt = 0; v.sourceTaken = 0; v.contextCards = [];
           for (let at = 0; at < ev.tokens.length; at += 8) {
             const part = ev.tokens.slice(at, at + 8);
             await carryMany(part, part.map((_, i) => ({ lane: 'heard', index: at + i })), part.map((_, i) => ({ lane: 'attention', index: at + i })));
-            v.contextCards.push(...part);
+            v.contextCards.push(...part); v.sourceTaken = at + part.length;
           }
+          await hold({ title: '聞いた ことばを 順番に ならべた', body: `届いたことばを1文字ずつの札にして、聞いた順に並べました（${said(ev.tokens)}）。「はじまり」「あなた」「交代」「コト」は、だれがいつ話したかを表す札です。コトは、この並び全体を手がかりにして、続きの文字を1つずつ考えます。順番が変わると、ちがう文として扱われます。`, detail: `${ev.tokens.length}まいの札。1まいが計算の単位（トークン）です。` });
         } else {
           // 2 文字め以降: いま出した文字を文脈に加える
           v.contextCards = ev.tokens.slice(0, -1);
           await carry(ev.tokens[last], { lane: 'output', index: Math.max(0, v.out.length - 1) }, { lane: 'attention', index: last });
           v.contextCards.push(ev.tokens[last]);
+          await hold({ title: `いま出した「${tokenLabel(ev.tokens[last])}」を 文脈に 足した`, body: `返事として出した文字も、文脈のいちばん後ろに並べます。次の文字は、聞いたことばと、ここまでに自分が出した文字の両方を見て決めます。こうして1文字ずつ、返事をのばしていきます。`, detail: `文脈は ${ev.tokens.length}まいになりました。` });
         }
         // いちばん新しい札を ① の部屋へ持っていく
         v.attentionFocus = last;
         await carry(ev.tokens[last], { lane: 'attention', index: last }, { lane: 'work', index: 0 });
         v.workToken = ev.tokens[last]; v.workAt = 0;
         v.attentionFocus = null;
+        await hold({ title: `いちばん新しい札「${tokenLabel(ev.tokens[last])}」を ①の部屋へ`, body: '次の文字を当てる計算は、文脈のいちばん後ろの札から始めます。写しを①の部屋へ持ってきました（元の札は文脈の部屋に残ります）。ここから①〜⑥の部屋を順番に通って、次に来そうな文字に点をつけます。', detail: '次の文字を決めるのに使うのは、いちばん後ろの札の計算結果です。' });
         await operate(ev.stages ?? []);
       }
       if (ev.type === 'probs') {
@@ -1087,6 +1103,7 @@ export function createMindView(root, room, model) {
         canvas.dataset.share = 'growing';
         await animate(step * 5, k => { v.share = k; });
         delete canvas.dataset.share;
+        await hold({ title: '点を 確率に なおした', body: `⑥でつけた点を、全部足すと100%になる割合に直しました。いちばん高いのは「${tokenLabel(rows[0].token)}」の ${(rows[0].p * 100).toFixed(1)}% です。点の差が大きいほど、割合の差も大きくなります。このあと、この割合の幅でルーレットを回します。`, detail: `表示は上位${rows.length}つ。ルーレットにはすべての候補が乗ります。` });
       }
       if (ev.type === 'pick') {
         await walkTo({ lane: 'roulette' });
@@ -1095,6 +1112,7 @@ export function createMindView(root, room, model) {
         await animate(step * 10, k => { v.lottery.k = k; });
         v.picked = ev.token;
         await animate(step * 2);
+        await hold();
         if (!v.visibleRows.some(r => r.token === ev.token)) {
           const selected = v.rows.find(r => r.token === ev.token);
           await carry(ev.token, { lane: 'roulette' }, { lane: 'candidates', index: 4 });
@@ -1108,6 +1126,7 @@ export function createMindView(root, room, model) {
         if (selected && !rows.includes(selected)) rows[rows.length - 1] = selected;
         await carry(ev.token, { lane: 'candidates', index: Math.max(0, rows.indexOf(selected)), count: rows.length }, { lane: 'output', index: v.out.length });
         v.out.push(ev.token);
+        await hold({ title: `返事に「${tokenLabel(ev.token)}」を 足した`, body: `ルーレットで選ばれた文字を、返事の部屋に並べました。いまの返事は「${v.out.map(tokenLabel).join('')}」です。「おしまい」が選ばれるまで、文脈に足して次の文字を考える、をくり返します。`, detail: `返事 ${v.out.length}文字め` });
       }
       if (ev.type === 'end') v.endText = END_TEXT[ev.reason];
       if (ev.type === 'gradient') {
@@ -1116,19 +1135,35 @@ export function createMindView(root, room, model) {
           const index = Math.max(0, v.contextCards.findLastIndex(token => token != null && !token.startsWith('<')));
           await carry(v.contextCards[index], { lane: 'attention', index }, { lane: 'work', index: 0 });
         }
-        v.workToken = null;
-        await operate(ev.changes ?? []);
+        v.workToken = null; v.stages = []; v.errorNote = null;
+        if (ev.quizBefore) {
+          // まず当ててみる。正解に付けた確率が低いほど、はずれが大きい
+          await walkTo({ lane: 'work', index: 5 });
+          delete canvas.dataset.carry;
+          v.quiz = { ...ev.quizBefore, k: 0 }; canvas.dataset.quiz = 'asking';
+          await animate(step * 5, k => { v.quiz.k = k; });
+          await animate(step * 3);
+          await hold();
+          v.errorNote = { size: 1 - ev.quizBefore.p };
+        }
+        // はずれの知らせを持って、⑥から①へ逆向きに目もりを直していく
+        await operate(ev.changes ?? [], (ev.changes ?? []).map((_, i) => i).reverse());
+        v.quiz = null; v.errorNote = null; delete canvas.dataset.quiz;
         (v.losses ??= []).push(ev); v.matrices = ev.matrices;
+        await hold({ title: `れんしゅう ${ev.epoch} / 12 が 終わった`, body: `6つの部屋の目もりを直したので、同じ問題をもう一度解くと、正解「${tokenLabel(ev.quiz?.answer ?? '')}」に付ける確率が ${((ev.quizBefore?.p ?? 0) * 100).toFixed(1)}% から ${((ev.quiz?.p ?? 0) * 100).toFixed(1)}% に変わりました。広間の掲示板に、はずれの大きさを書き足します。これを12回くり返します。`, detail: `はずれの大きさ（平均）${ev.loss.toFixed(3)}` });
       }
       if (ev.type === 'replay') {
         v.seq = ev.tokens; v.source = ev.tokens; v.contextCards = []; v.workToken = null;
         for (let at = 0; at < ev.tokens.length; at += 8) {
           v.seqAt = at; v.sourceAt = at;
           if (at % 24 === 0) v.contextCards = [];
+          v.sourceTaken = at;
           const part = ev.tokens.slice(at, at + 8);
           await carryMany(part, part.map((_, i) => ({ lane: 'heard', index: (at + i) % 24 })), part.map((_, i) => ({ lane: 'attention', index: (at + i) % 24 })));
           part.forEach((token, i) => { v.contextCards[(at + i) % 24] = token; });
+          v.sourceTaken = at + part.length;
         }
+        await hold({ title: '聞いた会話を 思い出して ならべた', body: `眠っている間に、起きているときに聞いた会話を1つずつ思い出します。いま並べたのは「${ev.tokens.map(tokenLabel).join('')}」。この並びの「途中まで見て、次の文字を当てる」を、練習問題にします。`, detail: `${ev.tokens.length}まいの札` });
       }
       await animate(step * (ev.type === 'gradient' ? 2 : .8));
       return;

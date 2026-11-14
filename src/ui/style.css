@@ -492,6 +492,10 @@ button.person-icon:hover { background: #f0e4cb; }
 
 .mind-explanation { position: absolute; z-index: 12; left: 18px; bottom: 18px; width: min(390px, calc(100% - 36px)); max-height: 30%; overflow-y: auto; padding: 14px 18px; box-sizing: border-box; color: #fff2d9; background: #20383cf2; border: 1px solid #a3b39b; border-radius: 14px; box-shadow: 0 5px 20px #17262b55; }
 .mind-explanation[hidden] { display: none; }
+.mind-explanation.detail { width: min(470px, calc(100% - 36px)); max-height: 46%; border-color: #ffdc96; }
+.mind-next { display: block; margin: 10px 0 2px auto; border: 0; border-radius: 20px; padding: 9px 22px; font-size: 15px; font-weight: bold; color: #2b3a33; background: #ffdc96; cursor: pointer; box-shadow: 0 3px 0 #b9944d; }
+.mind-next:active { transform: translateY(2px); box-shadow: 0 1px 0 #b9944d; }
+.mind-next[hidden] { display: none; }
 .mind-explanation h2 { margin: 0 0 7px; font-size: 17px; color: #ffdc96; }
 .mind-explanation p { margin: 5px 0; font-size: 14px; line-height: 1.65; }
 .mind-explanation .mind-explanation-detail { color: #c4dedb; font-size: 12px; }

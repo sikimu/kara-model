@@ -70,7 +70,17 @@ export function createNeural(seed = 173) {
   function train(sequences, epochs = 12) {
     const encoded = sequences.map(s => encode(s, true));
     const history = [];
+    // 当てっこの見本: 最初の会話のまん中あたりで、次の文字を当てる
+    const sample = encoded.find(ids => ids.length > 2), at = sample ? Math.min(sample.length - 1, Math.max(2, Math.ceil(sample.length / 2))) : 0;
+    const ask = () => {
+      if (!sample) return null;
+      const probs = forward(sample.slice(Math.max(0, at - WINDOW), at)).probs, answer = vocab[sample[at]];
+      const top = probs.map((p, i) => ({ token: vocab[i], p })).sort((x, y) => y.p - x.p).slice(0, 4);
+      if (!top.some(c => c.token === answer)) top[3] = { token: answer, p: probs[sample[at]] };
+      return { context: sample.slice(Math.max(0, at - 4), at).map(id => vocab[id]), answer, p: probs[sample[at]], top };
+    };
     for (let epoch = 0; epoch < epochs; epoch++) {
+      const quizBefore = ask(), whole = Object.fromEntries(Object.entries(weights).map(([key, list]) => [key, [...list]]));
       const groups = [['embed', '埋め込み'], ['q', '注意 Q'], ['v', '注意 V'], ['o', '注意の投影'], ['f1', 'MLP'], ['out', '出力']];
       const before = groups.map(([key]) => weights[key].slice(0, 24));
       let total = 0, count = 0, normTotal = 0;
@@ -82,11 +92,10 @@ export function createNeural(seed = 173) {
         total += loss; normTotal += norm; count++; updates++;
       }
       lastLoss = count ? total / count : null;
-      // 当てっこの見本: 最初の会話のまん中あたりで、正しい次の文字に付けた確率
-      const sample = encoded.find(ids => ids.length > 2), at = sample ? Math.min(sample.length - 1, Math.max(2, Math.ceil(sample.length / 2))) : 0;
-      const quiz = sample ? { context: sample.slice(Math.max(0, at - 4), at).map(id => vocab[id]), answer: vocab[sample[at]], p: forward(sample.slice(Math.max(0, at - WINDOW), at)).probs[sample[at]] } : null;
-      history.push({ epoch: epoch + 1, loss: lastLoss, quiz, gradientNorm: count ? normTotal / count : 0, updates, targets: count,
-        changes: groups.map(([key, label], i) => ({ label, kind: 'tune', before: before[i], values: weights[key].slice(0, 24) })),
+      const quiz = ask();
+      history.push({ epoch: epoch + 1, loss: lastLoss, quiz, quizBefore, gradientNorm: count ? normTotal / count : 0, updates, targets: count,
+        changes: groups.map(([key, label], i) => ({ label, kind: 'tune', before: before[i], values: weights[key].slice(0, 24),
+          moved: weights[key].reduce((sum, w, j) => sum + Math.abs(w - whole[key][j]), 0) / weights[key].length })),
         matrices: [weights.q.slice(0, 144), weights.f1.slice(0, 144), weights.out.slice(-144)] });
     }
     learned ||= encoded.some(s => s.length > 1);

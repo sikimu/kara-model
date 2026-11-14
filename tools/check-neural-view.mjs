@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { workFrame, unitCount, readout, tuneChange, explainNeural, rouletteTurn, rouletteSector } from '../src/ui/neural-explanation.js';
+import { workFrame, frameOf, stepNote, unitCount, readout, tuneChange, explainNeural, rouletteTurn, rouletteSector } from '../src/ui/neural-explanation.js';
 import proportional from '../src/model/chips/sampler-proportional.js';
 import { createNeural } from '../src/model/neural.js';
 
@@ -35,6 +35,23 @@ assert.deepEqual(stages[5].values, c.final);
 assert.match(readout(stages[0], workFrame(stages[0], 0)), /＋.*＝/);
 assert.match(explainNeural({ mode: 'infer', operation: { index: 1, k: 0 }, stages }).title, /見くらべる/);
 assert.match(explainNeural({ mode: 'infer', operation: { index: 4, k: 0 }, stages }).body, /しぼり機/);
+
+// くわしい説明: 置き終えた手順で止まり、その 1 手の数を説明する
+assert.deepEqual(frameOf(stages[0], { k: 3 / 12, hold: 2 }), { index: 2, phase: 1, count: 12 });
+const held = explainNeural({ mode: 'infer', operation: { index: 0, k: 3 / 12, hold: 2 }, stages });
+assert.match(held.body, /いま置いたのは 3本め/);
+assert.ok(held.body.includes(Math.abs(stages[0].values[2]).toFixed(2)), '説明の数は計算結果と同じ');
+for (let index = 0; index < 6; index++) assert.ok(stepNote(stages[index], { index: 0, phase: 1 }, index).length > 30);
+assert.match(stepNote(stages[4], { index: stages[4].before.findIndex(x => x < 0), phase: 1 }, 4), /マイナスなので/);
+assert.deepEqual(explainNeural({ holdNote: { title: 'a', body: 'b', detail: 'c' } }), { title: 'a', body: 'b', detail: 'c' });
+// 学習: 当てっこと、はずれの知らせ
+const history = createNeural().train([['<bos>', '<user>', 'や', 'あ', '<turn>', '<assistant>', 'や', 'あ', '<turn>', '<eos>']], 3);
+assert.ok(history.every(h => h.quizBefore.top.some(c => c.token === h.quizBefore.answer) && h.changes.every(c => c.moved > 0)));
+assert.ok(history.at(-1).quiz.p > history[0].quizBefore.p, '練習すると正解の確率が上がる');
+assert.ok(near(history[1].quizBefore.p, history[0].quiz.p), '次の周の当てっこは、前の周の結果から始まる');
+assert.match(explainNeural({ mode: 'learn', epoch: 2, quiz: history[1].quizBefore }).detail, /はずれ/);
+assert.match(explainNeural({ mode: 'learn', errorNote: { size: .5 }, courier: { token: null, k: .5 } }).title, /はずれの知らせ/);
+assert.match(explainNeural({ mode: 'learn', quiz: history[0].quizBefore, errorNote: { size: .5 }, courier: { token: null, k: .5 } }).title, /はずれの知らせ/, '当てっこの後の運搬では逆向きの説明を優先する');
 
 const attention = explainNeural({ courier: { token: 'あ', k: .5, from: { lane: 'attention' } }, attentionFocus: 0, attention: { weights: [.375] } });
 assert.match(attention.detail, /37\.50%/);

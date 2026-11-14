@@ -21,6 +21,7 @@ const PORT = process.argv.includes('--mobile') ? 8767 : 8766;
 const DEBUG_PORT = process.argv.includes('--mobile') ? 9335 : 9334;
 const CHROME = process.env.CHROME ?? 'C:/Program Files/Google/Chrome/Application/chrome.exe';
 const SLOW = process.argv.includes('--slow');
+const GUIDE = process.argv.includes('--guide-preview');
 const MOBILE = process.argv.includes('--mobile');
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.glb': 'model/gltf-binary', '.png': 'image/png' };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -105,7 +106,7 @@ try {
 
   // まっさらな状態から始める。速度は --slow でなければ一番はやく
   await load();
-  await evaluate(`localStorage.clear(); localStorage.setItem('kara-model-ui', JSON.stringify({ speedIndex: ${SLOW ? 5 : 9}, skip: false }))`);
+  await evaluate(`localStorage.clear(); ${GUIDE ? '' : "localStorage.setItem('kara-mind-guide', 'false');"} localStorage.setItem('kara-model-ui', JSON.stringify({ speedIndex: ${SLOW ? 5 : 9}, skip: false }))`);
   await load();
 
   const busy = () => evaluate(`document.querySelector('#app').dataset.busy === 'true'`);
@@ -162,10 +163,45 @@ try {
   await shot('0-settings.png');
   await clickOn('.settings-close');
 
-  if (process.argv.includes('--mind-preview')) {
+  if (process.argv.includes('--mind-preview') || GUIDE) {
     await evaluate(`(() => { kara.hear('やあ'); kara.sleep(); const slider = document.querySelector('.speed-slider'); slider.value = '5'; slider.dispatchEvent(new Event('input')); })()`);
     await action('talk');
     await evaluate(`(() => { document.querySelector('.talk-form input').value = 'やあ'; document.querySelector('.talk-form').requestSubmit(); })()`);
+    if (GUIDE) {
+      const waitGuide = async () => {
+        for (let i = 0; i < 1200; i++) {
+          if (await evaluate(`document.querySelector('.mind-view').dataset.hold === 'waiting'`)) { await evaluate(`new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))`); return; }
+          await sleep(50);
+        }
+        throw new Error('説明待ちにならない');
+      };
+      await waitGuide();
+      expect('初期設定は中央で止めて説明する', await evaluate(`document.querySelector('.mind-explain-toggle').textContent === '止めて説明' && document.querySelector('.mind-explanation h2').textContent.includes('玄関')`));
+      expect('説明カードは画面中央に収まる', await evaluate(`(() => { const r = document.querySelector('.mind-explanation').getBoundingClientRect(); return Math.abs((r.left + r.right)/2 - innerWidth/2) < 3 && r.top > 110 && r.bottom < innerHeight; })()`));
+      await shot('20-entrance-guide.png');
+      await clickOn('.mind-next'); await sleep(100);
+      expect('再生中に説明を残さない', await evaluate(`document.querySelector('.mind-explanation').hidden`));
+      let cargoVisible = false;
+      for (let i = 0; i < 500; i++) {
+        if (await evaluate(`!!document.querySelector('.mind-view').dataset.cargo && document.querySelector('.mind-view').dataset.carry === 'walking'`)) { cargoVisible = true; break; }
+        await sleep(50);
+      }
+      expect('歩いている間も持っていることばが見える', cargoVisible && await evaluate(`!document.querySelector('.mind-cargo').hidden && document.querySelector('.mind-cargo').textContent.includes('やあ')`));
+      await shot('20-carry-visible.png');
+      await waitGuide();
+      expect('運んだ後に並べる目的を説明する', await evaluate(`document.querySelector('.mind-explanation h2').textContent.includes('まだ準備の途中')`));
+      await shot('21-arrange-intro.png');
+      for (let i = 0; i < 4; i++) {
+        await clickOn('.mind-next'); await sleep(100); await waitGuide();
+        expect(`札${i + 1}を1枚ずつ番号へ置く`, await evaluate(`document.querySelector('.mind-explanation h2').textContent.startsWith('${i + 1}番')`));
+      }
+      await shot('22-arrange-guide.png');
+      expect('写しを並べても元のことばが残る', await evaluate(`Number(document.querySelector('.mind-view').dataset.sourceCount) === 6 && Number(document.querySelector('.mind-view').dataset.contextCount) === 3`));
+      const text = await evaluate(`document.querySelector('.mind-explanation h2').textContent`);
+      await sleep(800);
+      expect('説明を読んでいる間は進まない', text === await evaluate(`document.querySelector('.mind-explanation h2').textContent`));
+      await clickOn('.mind-explain-toggle');
+    }
     for (const phase of ['packing', 'walking', 'unpacking']) {
       let found = false;
       for (let i = 0; i < 300; i++) {
@@ -182,14 +218,12 @@ try {
     }
     await shot('17-mind-attention.png');
     expect('初期状態は説明なし', await evaluate(`document.querySelector('.mind-explain-toggle').getAttribute('aria-pressed') === 'false' && document.querySelector('.mind-explanation').hidden`));
-    await clickOn('.mind-explain-toggle');
-    expect('説明を再生中に表示できる', await evaluate(`document.querySelector('.mind-explain-toggle').getAttribute('aria-pressed') === 'true' && !document.querySelector('.mind-explanation').hidden`));
     for (let i = 0; i < 900; i++) {
       if (await evaluate(`document.querySelector('.mind-view').dataset.operation === '0'`)) break;
       await sleep(100);
     }
     await sleep(550);
-    expect('作業中は手元へ寄り、説明が作業に対応する', await evaluate(`document.querySelector('.mind-view').dataset.view === 'work-closeup' && document.querySelector('.mind-explanation h2').textContent.includes('文字を 数に')`));
+    expect('作業中は手元へ寄り、説明が作業に対応する', await evaluate(`document.querySelector('.mind-view').dataset.view === 'work-closeup'`));
     await clickOn('.pause-button');
     await sleep(900);
     const pausedValue = await evaluate(`document.querySelector('.mind-view').dataset.manipulating`);
@@ -207,7 +241,7 @@ try {
     await clickOn('.mind-explain-toggle');
     await clickOn('.pause-button');
     const waitHold = async () => { for (let i = 0; i < 200; i++) { if (await evaluate(`document.querySelector('.mind-view').dataset.hold === 'waiting'`)) { await evaluate(`new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))`); return true; } await sleep(50); } return false; };
-    expect('くわしい説明は置いたところで止まる', await waitHold() && await evaluate(`document.querySelector('.mind-explain-toggle').textContent === 'くわしく説明' && !document.querySelector('.mind-next').hidden && document.querySelector('.mind-explanation p').textContent.includes('いま置いた')`));
+    expect('くわしい説明は置いたところで止まる', await waitHold() && await evaluate(`document.querySelector('.mind-explain-toggle').textContent === '止めて説明' && !document.querySelector('.mind-next').hidden && document.querySelector('.mind-explanation p').textContent.includes('いま置いた')`));
     const heldValue = Number(await evaluate(`document.querySelector('.mind-view').dataset.manipulating`));
     await sleep(900);
     expect('読んでいる間は先へ進まない', heldValue === Number(await evaluate(`document.querySelector('.mind-view').dataset.manipulating`)));
@@ -227,7 +261,6 @@ try {
     console.log(`    描画の質: ${await evaluate(`document.querySelector('.mind-view').dataset.quality ?? 'full'`)}`);
     expect('コトがデータを持ち上げて扱う時間が見える', holding);
     await shot('18-work-hand.png');
-    await clickOn('.mind-explain-toggle');
     let operated = 0;
     for (let room = 1; room <= 5; room++) {
       for (let i = 0; i < 900; i++) {
@@ -258,6 +291,11 @@ try {
     await evaluate(`document.querySelector('.mind-explain-toggle').click(); document.querySelector('.skip-button').click()`);
     await done();
     expect('説明待ちになる前でも演出を最後まで飛ばせる', await evaluate(`!document.querySelector('.mind-view').dataset.hold && document.querySelector('.skip-button').hidden`));
+    await action('explore'); await sleep(1200);
+    expect('開き直しても元のことばと並べた札が残る', await evaluate(`Number(document.querySelector('.mind-view').dataset.sourceCount) > 0 && Number(document.querySelector('.mind-view').dataset.contextCount) > 0`));
+    await clickOn('.mind-camera button:nth-child(2)'); await sleep(300);
+    await shot('25-revisit-cards.png');
+    await clickOn('.home-button'); await sleep(1000);
   } else if (process.argv.includes('--sleep-preview')) {
     await evaluate(`(() => { kara.hear('おやすみ'); const slider = document.querySelector('.speed-slider'); slider.value = '0'; slider.dispatchEvent(new Event('input')); })()`);
     await action('sleep');
@@ -358,7 +396,25 @@ try {
     await sleep(400);
     expect('コトが学習の6か所の作業台を順に動かす', operated);
     await shot('4-dream-operation.png');
+    await clickOn('.mind-explain-toggle');
+    const waitLearningNote = async () => {
+      for (let i = 0; i < 300; i++) {
+        if (await evaluate(`document.querySelector('.mind-view').dataset.hold === 'waiting'`)) { await evaluate(`new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))`); return; }
+        await sleep(50);
+      }
+      throw new Error('重みの説明待ちにならない');
+    };
+    await waitLearningNote();
+    if (!await evaluate(`document.querySelector('.mind-explanation h2').textContent.includes('まず確かめる')`)) { await clickOn('.mind-next'); await sleep(100); await waitLearningNote(); }
+    expect('重みを動かす前に値と向きを説明する', await evaluate(`document.querySelector('.mind-explanation h2').textContent.includes('まず確かめる') && document.querySelector('.mind-explanation p').textContent.includes('調節できる数')`));
+    const weightIndex = await evaluate(`document.querySelector('.mind-view').dataset.manipulating`);
+    await shot('23-weight-before.png');
+    await clickOn('.mind-next'); await sleep(100); await waitLearningNote();
+    expect('1個の重みを動かした後で再び止まる', weightIndex === await evaluate(`document.querySelector('.mind-view').dataset.manipulating`) && await evaluate(`document.querySelector('.mind-explanation p').textContent.includes('番の重み')`));
+    await shot('24-weight-after.png');
     await clickOn('.skip-button');
+    // スキップで画面が閉じる速度に左右されず、後続テスト用に説明を無効化。
+    await evaluate(`if (document.querySelector('.mind-view').dataset.explain === 'detail') document.querySelector('.mind-explain-toggle').click()`);
   }
   await done();
   s = await state();
@@ -387,6 +443,7 @@ try {
   // 頭の中を見る
   await action('explore');
   await sleep(2000);
+  expect('頭の中を開き直しても受け取ったことばと並びが残る', await evaluate(`Number(document.querySelector('.mind-view').dataset.sourceCount) > 0 && Number(document.querySelector('.mind-view').dataset.contextCount) > 0`));
   await shot('8-explore.png');
   if (MOBILE) {
     expect('3Dの頭の中が画面の高さに収まる', await evaluate(`document.querySelector('.mind-view').clientHeight === document.querySelector('.stage3d').clientHeight`));
@@ -410,7 +467,8 @@ try {
   await sleep(400);
   expect('自由視点からコト追従に戻せる', await evaluate(`document.querySelector('.mind-camera button').getAttribute('aria-pressed') === 'true'`));
   await clickOn('.mind-explain-toggle');
-  expect('説明モードを切り替えて保存する', await evaluate(`localStorage.getItem('kara-mind-explanations') === 'true' && !document.querySelector('.mind-explanation').hidden`));
+  expect('説明モードを切り替えて保存する', await evaluate(`localStorage.getItem('kara-mind-guide') === 'detail' && document.querySelector('.mind-explanation').hidden`));
+  await clickOn('.mind-explain-toggle');
   await clickOn('.home-button');
   await sleep(1200);
   expect('頭の中から戻ると操作できる', (await busy()) === false);
@@ -462,7 +520,7 @@ try {
   await clickOn('.chips .item-close');
   await load();
   expect('保存後はタイトル画面につづきからを表示する', await evaluate(`!document.querySelector('.title-screen').hidden && document.querySelector('.title-start').textContent === 'つづきから'`));
-  expect('説明モードも再読み込み後に残る', await evaluate(`document.querySelector('.mind-explain-toggle').getAttribute('aria-pressed') === 'true'`));
+  expect('説明モードも再読み込み後に残る', await evaluate(`document.querySelector('.mind-explain-toggle').getAttribute('aria-pressed') === 'false'`));
   await shot('13-continue.png');
   await clickOn('.title-start');
   s = await state();
@@ -470,7 +528,7 @@ try {
   expect('チップと温度、初日の完了が保存される', await evaluate(`kara.chips.sampler.id === 'sampler-temperature' && kara.options.temperature === 0.5 && kara.tutorial.step === 4`));
   }
 
-  if (!process.argv.includes('--appearance') && !process.argv.includes('--sleep-preview') && !process.argv.includes('--mind-preview')) {
+  if (!process.argv.includes('--appearance') && !process.argv.includes('--sleep-preview') && !process.argv.includes('--mind-preview') && !GUIDE) {
     await action('sleep');
     await clickOn('.sleep-button');
     await sleep(350);

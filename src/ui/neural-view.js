@@ -30,13 +30,15 @@ export const ROOMS = {
   output: { x: -22, z: 9, depth: 2.6, sign: 'へんじ' },
 };
 const LANES = [-27.5, -16.5, -5.5, 5.5, 16.5];
-const roomOf = a => ROOMS[a.lane === 'work' ? `work${a.index ?? 0}` : a.lane === 'attention' ? 'context' : a.lane] ?? ROOMS.heard;
+const roomOf = a => ROOMS[a.lane === 'work' ? `work${a.index ?? 0}` : ['attention', 'sorting'].includes(a.lane) ? 'context' : a.lane] ?? ROOMS.heard;
 const tableOf = r => ({ x: r.x + .3, z: r.z + (r.depth >= 3 ? .5 : .7), w: r.depth >= 3 ? 4.4 : 6.4, d: r.depth });
 const grid12 = (t, i, dz) => new V3(t.x - 2.75 + (i % 12) * .5, 1.2, t.z - dz + Math.floor(i / 12) * dz * 2);
 
 // 札を置く場所。World coordinates are independent of the viewport.
 export function neuralPoint(a) {
   const t = tableOf(roomOf(a)), index = a.index ?? 0;
+  if (a.lane === 'entrance') return new V3(11, 1.2, 15.2);
+  if (a.lane === 'sorting') return new V3(t.x - 2.4 + index * .6, 1.15, t.z - .8);
   if (a.lane === 'roulette') return new V3(t.x, 1.75, t.z);
   if (a.lane === 'work') return a.slot == null ? new V3(t.x - 2.55, 1.25, t.z + .3) : new V3(t.x + .65 + (a.slot - ((a.count ?? 5) - 1) / 2) * .95, 1.6, t.z + .4);
   if (a.lane === 'attention') return grid12(t, index, .45);
@@ -46,11 +48,13 @@ export function neuralPoint(a) {
 }
 // コトが立つ場所。机の奥に立って、手前（見る人のほう）を向く。
 function dock(a) {
+  if (a.lane === 'entrance') return new V3(11, 0, 14.1);
   const t = tableOf(roomOf(a)), p = neuralPoint(a);
   return new V3(between(p.x, t.x - t.w / 2 + .5, t.x + t.w / 2 - .5), 0, t.z - t.d / 2 - .62);
 }
 // 部屋から部屋へは、入口を出て道を通る。
 function route(a, b) {
+  if (a.lane === 'entrance') return [dock(a), new V3(11, 0, 13.5), new V3(-14.7, 0, 13.5), new V3(-14.7, 0, 12.1), dock(b)];
   const ra = roomOf(a), rb = roomOf(b), A = dock(a), B = dock(b);
   if (ra === rb) return [A, B];
   const exit = (r, d) => [new V3(r.x - 3.75, 0, d.z), new V3(r.x - 3.7, 0, r.z + 3.1), new V3(r.x - 3.7, 0, r.z + 4.5)];
@@ -97,24 +101,25 @@ export function createNeuralView(room, canvas) {
   const toolbar = document.createElement('div'); toolbar.className = 'mind-camera'; toolbar.hidden = true;
   const follow = document.createElement('button'); follow.textContent = 'コトを追う'; follow.type = 'button'; follow.setAttribute('aria-pressed', 'true');
   const overview = document.createElement('button'); overview.textContent = '見渡す'; overview.type = 'button';
-  // 説明は 3 段階: なし（'false'）、あり（'true'）、くわしく（'detail'。1 手ごとに止まって説明する）
-  let level = 'false', explanations = false;
-  try { const saved = localStorage.getItem('kara-mind-explanations'); if (saved === 'true' || saved === 'detail') level = saved; } catch { /* Storage can be unavailable. */ }
+  // 新しい説明方式は、停止して中央に説明／説明なしの2段階。旧欄の設定とは分ける。
+  let level = 'detail', explanations = true;
+  try { const saved = localStorage.getItem('kara-mind-guide'); if (saved === 'false') level = 'false'; } catch { /* Storage can be unavailable. */ }
   explanations = level !== 'false';
   const explain = document.createElement('button'); explain.type = 'button'; explain.className = 'mind-explain-toggle';
-  const notes = document.createElement('section'); notes.className = 'mind-explanation'; notes.hidden = true; notes.setAttribute('aria-label', 'いまの作業の説明');
+  const notes = document.createElement('section'); notes.className = 'mind-explanation'; notes.hidden = true; notes.setAttribute('role', 'dialog'); notes.setAttribute('aria-label', '一時停止して作業を説明');
   const heading = document.createElement('h2'), body = document.createElement('p'), detail = document.createElement('p'); detail.className = 'mind-explanation-detail'; notes.append(heading, body, detail);
   const next = document.createElement('button'); next.type = 'button'; next.className = 'mind-next'; next.textContent = 'つぎへ ▶'; next.hidden = true; notes.append(next);
   // くわしい説明で止まっている間の待ち。つぎへ・説明の切り替え・演出を飛ばす・閉じる、で進む
   let waiting = null, skipDetails = false;
-  const proceed = reason => { const done = waiting; waiting = null; next.hidden = true; delete canvas.dataset.hold; done?.(reason); };
+  const proceed = reason => { const done = waiting; waiting = null; next.hidden = true; notes.hidden = true; delete canvas.dataset.hold; done?.(reason); };
   next.onclick = () => proceed('next');
   document.addEventListener('click', event => { if (!toolbar.hidden && event.target.closest?.('.skip-button')) { skipDetails = true; proceed('skip'); } }, true);
   document.addEventListener('keydown', event => { if (waiting && (event.key === 'Enter' || event.key === ' ') && !event.target.closest?.('input, textarea, button')) { event.preventDefault(); proceed('next'); } });
-  canvas.parentElement.append(notes);
-  const updateMode = () => { explanations = level !== 'false'; explain.textContent = level === 'detail' ? 'くわしく説明' : explanations ? '説明あり' : '説明なし'; explain.setAttribute('aria-pressed', String(explanations)); notes.classList.toggle('detail', level === 'detail'); canvas.dataset.explain = level; };
+  const cargo = document.createElement('div'); cargo.className = 'mind-cargo'; cargo.hidden = true; cargo.setAttribute('aria-label', 'いま持っているもの');
+  canvas.parentElement.append(notes, cargo);
+  const updateMode = () => { explanations = level !== 'false'; explain.textContent = level === 'detail' ? '止めて説明' : '説明なし'; explain.setAttribute('aria-pressed', String(explanations)); notes.classList.toggle('detail', level === 'detail'); canvas.dataset.explain = level; };
   updateMode();
-  explain.onclick = () => { level = level === 'false' ? 'true' : level === 'true' ? 'detail' : 'false'; updateMode(); notes.hidden = !explanations; if (level !== 'detail') proceed('mode'); try { localStorage.setItem('kara-mind-explanations', level); } catch { /* Keep the current mode in memory. */ } };
+  explain.onclick = () => { level = level === 'false' ? 'detail' : 'false'; updateMode(); notes.hidden = !waiting; if (level !== 'detail') proceed('mode'); try { localStorage.setItem('kara-mind-guide', level); } catch { /* Keep the current mode in memory. */ } };
   const help = document.createElement('span'); help.textContent = 'ドラッグで回転 · 右ドラッグで移動 · ホイールでズーム';
   toolbar.append(follow, overview, explain, help); canvas.parentElement.append(toolbar);
   const narrow = () => lastW <= 640;
@@ -130,7 +135,7 @@ export function createNeuralView(room, canvas) {
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(260, 260), applySurface(new THREE.MeshStandardMaterial({ color: '#8fbb80', roughness: .95 }), 'grass', { bump: .6, repeat: 70 }));
   floor.rotation.x = -Math.PI / 2; floor.position.y = -.07; floor.receiveShadow = true; scene.add(floor);
 
-  const koto = room.character.clone(true); koto.position.copy(dock({ lane: 'heard' })); koto.rotation.set(0, 0, 0); koto.scale.setScalar(1.15); koto.add(room.courierBag.clone(true)); scene.add(koto);
+  const koto = room.character.clone(true); koto.position.copy(dock({ lane: 'heard' })); koto.rotation.set(0, 0, 0); koto.scale.setScalar(1.15); scene.add(koto);
   const feet = ['footL', 'footR'].map(n => koto.getObjectByName(n)), bases = feet.map(f => f.position.clone());
   const arms = ['armL', 'armR'].map(n => koto.getObjectByName(n));
   const armBases = arms.map(a => ({ position: a.position.clone(), quaternion: a.quaternion.clone(), scale: a.scale.clone() }));
@@ -399,24 +404,37 @@ export function createNeuralView(room, canvas) {
       const zr = j => t.z - .2 + Math.floor(j / 12) * .6;
       caption(`「${stage.label}」の`, t.z - .2); caption('目もり（重み）', t.z + .4);
       for (let j = 0; j < n; j++) {
-        const x = colX(12, j % 12), unit = Math.floor(j / 4), st = !stage.before ? 1 : state(unit), go = ease(clamp((st - .25) / .55));
+        const x = colX(12, j % 12), unit = j, st = !stage.before ? 1 : state(unit), go = ease(clamp((st - .25) / .55));
         const before = stage.before?.[j] ?? stage.values[j], value = lerp(before, stage.values[j], go), active = f && unit === f.index;
         const height = .04 + Math.abs(value) * s;
         const mesh = bar(x, zr(j), height, active ? (value < 0 ? '#7fc4ee' : '#ffd166') : tone(value), w);
-        if (active && st < 1) mesh.rotation.z = Math.sin(clock * 30 + j) * .1 * Math.sin(st * Math.PI);
+        if (active) mesh.material = paint(HOT);
         if (go <= 0 || go >= 1) num(x, zr(j), TOP + height, value);
         if (stage.before) bar(x, zr(j) - .15, .02, MARK, w + .06, .04, TOP + .04 + Math.abs(before) * s);
         // 動かす向き（はずれの知らせから決まる）。動かし終えたら消す
         if (stage.before && f && go <= 0 && Math.abs(stage.values[j] - before) > 1e-7) label(stage.values[j] > before ? '▲' : '▼', new V3(x, TOP + height + .42, zr(j)), .26, stage.values[j] > before ? '#ffb199' : '#a9d4ee', 'num');
       }
-      if (f) { const j = Math.min(n - 1, f.index * 4 + 1); hand = new V3(colX(12, j % 12) + WIDTH / 24, TOP + .6 + Math.sin(f.phase * Math.PI * 4) * .05, zr(j) - .05); }
+      if (f && stage.before) {
+        const j = f.index, before = stage.before[j], after = stage.values[j];
+        const go = ease(clamp((f.phase - .25) / .55)), limit = Math.max(...stage.before.map(Math.abs), ...stage.values.map(Math.abs), .001);
+        const x = value => t.x + .5 + value / limit * 1.7, z = t.z + .8;
+        bar(t.x + .5, z, .035, MARK, 3.5, .06, 1.3);
+        bar(t.x + .5, z, .24, '#fff0ce', .025, .06, 1.2);
+        bead(new V3(x(before), 1.32, z), .09, '#b7b6a6');
+        const point = new V3(x(lerp(before, after, go)), 1.32, z);
+        bead(point, .14, HOT); hand = point;
+        label(`${j + 1}番の重み`, new V3(t.x + .5, 2.1, z), 2.0, '#fff0ce', 'board');
+        label(after === before ? 'そのまま' : after > before ? '増やす →' : '← 減らす', new V3(t.x + .5, 1.7, z), 1.5, '#ffdc96', 'board');
+        label('−', new V3(t.x - 1.4, 1.32, z), .35); label('＋', new V3(t.x + 2.4, 1.32, z), .35);
+      }
     }
     return hand;
   }
 
   let lastTravel = null, path = [], lastViewKey = '', facing = 0, doorCount = 0, blend = 1;
-  let lastTime = 0, slowFrames = 0, light = false;
+  let lastTime = 0, slowFrames = 0, light = false, heldClock = null;
   function draw(g, v, W, H, clock) {
+    if (waiting) { heldClock ??= clock; clock = heldClock; } else heldClock = null;
     toolbar.hidden = false; controls.enabled = true;
     // 動きの速さはコマ数に左右されないよう、前のコマからの時間で決める
     const now = performance.now(), dt = Math.min(.25, lastTime ? (now - lastTime) / 1000 : .016); lastTime = now;
@@ -468,15 +486,35 @@ export function createNeuralView(room, canvas) {
       sign.mesh.material.map = sign.textures[here ? 1 : 0];
     }
     // 持っていく札は元の場所から消す。文脈・返事・①〜⑥の札は写しを持っていくので、元の札は残す
-    const moving = (lane, index) => count && k > 0 && travel.froms.some((a, n) => a.lane === lane && a.index === index && (lane === 'heard' || lane === 'candidates') && (count === 1 || k >= pack * n / count));
+    const moving = (lane, index) => count && k > 0 && travel.froms.some((a, n) => a.lane === lane && a.index === index && lane === 'candidates' && (count === 1 || k >= pack * n / count));
     const source = v.source ?? v.heard ?? v.seq ?? [];
     const start = Math.floor((v.sourceAt ?? 0) / 24) * 24;
-    source.slice(start, start + 24).forEach((token, i) => { if (start + i >= (v.sourceTaken ?? 0) && !moving('heard', i)) label(tokenLabel(token), neuralPoint({ lane: 'heard', index: i }), .46); });
+    source.slice(start, start + 24).forEach((token, i) => { label(tokenLabel(token), neuralPoint({ lane: 'heard', index: i }), .46); });
+    if (v.inboxText) label(v.inboxText, new V3(-10.7, 2.05, 9), 4.4, '#fff0ce', 'board');
+    if (v.arriving) label('玄関に ことばが届いた', new V3(11, 3.8, 15.2), 3.2, '#fff0ce', 'board');
     if (source.length > 24) label(`${start + 1}–${Math.min(start + 24, source.length)} / ${source.length}`, neuralPoint({ lane: 'heard', index: 5 }).add(new V3(.25, 1, -.3)), 1.6);
     (v.contextCards ?? []).forEach((token, i) => {
       const p = neuralPoint({ lane: 'attention', index: i });
       if (token != null && !moving('attention', i)) label(tokenLabel(token), p, .46, v.attentionFocus === i ? '#ffd878' : '#fff0ce');
+      if (token != null && !v.arrange) label(String((v.contextOffset ?? 0) + i + 1), p.clone().add(new V3(0, -.3, .2)), .32, '#fff0ce', 'num');
     });
+    if (v.arrange) {
+      const a = v.arrange;
+      a.tokens.forEach((token, j) => {
+        const to = neuralPoint({ lane: 'attention', index: (a.offset + j) % 24 });
+        bar(to.x, to.z, .025, j === a.index ? HOT : '#d2c4a0', .46, .5);
+        label(String(a.offset + j + 1), to.clone().add(new V3(0, -.3, .2)), .32, '#fff0ce', 'num');
+        if (j >= a.index) {
+          const from = neuralPoint({ lane: 'sorting', index: j });
+          const p = j === a.index ? arc(from, to, ease(a.k), .65) : from;
+          label(tokenLabel(token), p, .48);
+          if (j === a.index) hand = p.clone();
+        }
+      });
+      const t = tableOf(ROOMS.context);
+      label('聞いた順に 1 → 2 → 3', new V3(t.x, .55, t.z + 1.3), 3.0, '#fff0ce', 'board');
+      canvas.dataset.arrange = `${a.offset + a.index}`;
+    } else delete canvas.dataset.arrange;
     if (v.workToken != null && !stages[v.workAt ?? 0] && !moving('work', v.workAt ?? 0)) label(tokenLabel(v.workToken), neuralPoint({ lane: 'work', index: v.workAt ?? 0 }), .9);
     (v.visibleRows ?? []).forEach((r, i) => {
       if (!r) return;
@@ -492,7 +530,9 @@ export function createNeuralView(room, canvas) {
 
     // コトの移動
     let target, toward = null;
-    if (work && active) {
+    if (v.arrange) {
+      target = dock({ lane: 'attention', index: (v.arrange.offset + v.arrange.index) % 24 });
+    } else if (work && active) {
       const t = tableOf(ROOMS[`work${work.index}`]);
       target = new V3(between(hand?.x ?? koto.position.x, t.x - 2.4, t.x + 2.9), 0, t.z - t.d / 2 - .62);
     } else if (travel) {
@@ -528,22 +568,31 @@ export function createNeuralView(room, canvas) {
       door.leaf.rotation.y = -door.open * 1.75;
     }
 
-    // かばんへ出し入れする札と数
-    const bag = koto.position.clone().add(new V3(0, .8, 0));
+    // 拾ってから置くまで手元に残す。運搬中の中身も文字で確認できる。
+    const heldAt = koto.position.clone().add(new V3(.55, 1.05, .35));
+    const heldTokens = [];
     travel?.tokens.forEach((token, n) => {
       const a = neuralPoint(travel.froms[n]), b = neuralPoint(travel.tos[n]);
       const size = travel.froms[n].lane === 'candidates' || travel.froms[n].lane === 'work' ? .8 : .55;
       const landed = { attention: .46, output: .58, candidates: .9, work: .9 }[travel.tos[n].lane] ?? .6;
       const put = clamp((k - pack * n / count) / (pack / count)), take = clamp((k - 1 + pack - pack * n / count) / (pack / count));
       if (put <= 0) return;
-      if (put < 1) label(tokenLabel(token), arc(a, bag, ease(put), .5), size * (1 - put * .6));
-      else if (take > 0 && take < 1) label(tokenLabel(token), arc(bag, b, ease(take), .5), lerp(size * .4, landed, take));
-      else if (take >= 1) label(tokenLabel(token), b, landed); // 置いた札は、まとめて運び終わるまでそのまま見せる
+      const held = heldAt.clone().add(new V3((n % 4) * .12, Math.floor(n / 4) * .13, n * .025));
+      if (take < 1) heldTokens.push(tokenLabel(token));
+      if (put < 1) label(tokenLabel(token), arc(a, held, ease(put), .5), size);
+      else if (take > 0 && take < 1) label(tokenLabel(token), arc(held, b, ease(take), .5), lerp(size, landed, take));
+      else if (take >= 1) label(tokenLabel(token), b, landed);
+      else label(tokenLabel(token), held, size); // 歩いている間も、札を手元に残す
     });
-    if (v.packet && travel && !count && (k < .2 || k > .8)) {
+    if (v.packet && travel && !count) {
       const spread = (address, i) => { const t = tableOf(roomOf(address)); return new V3(t.x - 1.5 + i * (4.3 / v.packet.length), TOP + .3, t.z + .5); };
-      v.packet.slice(0, 24).forEach((value, i) => bead(k < .2 ? spread(travel.froms[0], i).lerp(bag, ease(k / .2)) : bag.clone().lerp(spread(travel.tos[0], i), ease((k - .8) / .2)), .075, v.errorNote ? '#e2574c' : tone(value)));
+      v.packet.slice(0, 24).forEach((value, i) => bead(k < .2 ? spread(travel.froms[0], i).lerp(heldAt, ease(clamp(k / .2))) : heldAt.clone().lerp(spread(travel.tos[0], i), ease(clamp((k - .8) / .2))), .075, v.errorNote ? '#e2574c' : tone(value)));
     }
+    const payload = heldTokens.length ? `持っている札 · ${heldTokens.length}枚\n${heldTokens.join(' ・ ')}` : v.packet && travel && k < 1 ? (v.errorNote ? '持っているもの\n前の部屋へ伝える、調整の知らせ' : `持っているもの\n前の部屋で計算した ${v.packet.length}個の数`) : '';
+    cargo.hidden = !payload; if (cargo.textContent !== payload) cargo.textContent = payload;
+    canvas.dataset.cargo = heldTokens.join('|');
+    canvas.dataset.sourceCount = String(source.length);
+    canvas.dataset.contextCount = String((v.contextCards ?? []).filter(t => t != null).length);
     if (active && activeStage) {
       const text = readout(activeStage, active), t = tableOf(ROOMS[`work${work.index}`]);
       // 色と高さの読み方
@@ -554,7 +603,7 @@ export function createNeuralView(room, canvas) {
     for (let i = barUsed; i < barPool.length; i++) barPool[i].visible = false;
     for (let i = beadUsed; i < beadPool.length; i++) beadPool[i].visible = false;
 
-    notes.hidden = !explanations;
+    notes.hidden = !explanations || !waiting;
     if (explanations) {
       const info = explainNeural(v);
       for (const [element, text] of [[heading, info.title], [body, info.body], [detail, info.detail]]) if (element.textContent !== text) element.textContent = text;
@@ -567,7 +616,8 @@ export function createNeuralView(room, canvas) {
     for (const [key, material] of cache) if (!live.has(material)) { material.map.dispose(); material.dispose(); cache.delete(key); }
     if (following) {
       let look, offset, key;
-      if (lottery) { look = new V3(wheelAt.x, .9, wheelAt.z); offset = new V3(.6, 5.4, 4.8).multiplyScalar(narrow() ? 1.25 : 1); key = 'roulette'; }
+      if (v.arrange) { look = neuralPoint({ lane: 'attention', index: (v.arrange.offset + v.arrange.index) % 24 }); offset = narrow() ? new V3(0, 6, 7) : new V3(0, 4.8, 6); key = 'arrange'; }
+      else if (lottery) { look = new V3(wheelAt.x, .9, wheelAt.z); offset = new V3(.6, 5.4, 4.8).multiplyScalar(narrow() ? 1.25 : 1); key = 'roulette'; }
       else if (work) {
         const t = tableOf(ROOMS[`work${work.index}`]);
         look = new V3(narrow() ? between(hand?.x ?? t.x, t.x - 2, t.x + 2.4) : t.x + .1, .8, t.z - .1);
@@ -585,7 +635,7 @@ export function createNeuralView(room, canvas) {
     get detail() { return level === 'detail'; },
     // 置き終えたところで止まり、読み終わって「つぎへ」が押されるのを待つ
     waitNext() { if (skipDetails) return Promise.resolve('skip'); proceed('replaced'); next.hidden = false; canvas.dataset.hold = 'waiting'; return new Promise(resolve => { waiting = resolve; }); },
-    open() { skipDetails = false; toolbar.hidden = false; controls.enabled = true; canvas.style.touchAction = 'none'; following = true; lastViewKey = ''; lastTravel = null; follow.setAttribute('aria-pressed', 'true'); koto.position.copy(dock({ lane: 'heard' })); facing = 0; },
-    close() { proceed('close'); toolbar.hidden = true; notes.hidden = true; controls.enabled = false; canvas.style.touchAction = ''; },
+    open() { skipDetails = false; toolbar.hidden = false; controls.enabled = true; canvas.style.touchAction = 'none'; following = true; lastViewKey = ''; lastTravel = null; follow.setAttribute('aria-pressed', 'true'); koto.position.copy(dock({ lane: 'entrance' })); facing = 0; },
+    close() { proceed('close'); toolbar.hidden = true; notes.hidden = true; cargo.hidden = true; controls.enabled = false; canvas.style.touchAction = ''; },
   };
 }

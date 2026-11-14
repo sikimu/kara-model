@@ -916,11 +916,13 @@ def build_mind_space():
     X0, X1, Z0, Z1 = -28.8, 17.8, -12.5, 15.2
     box('mind_hall_floor', S(X1 - X0, .12, Z1 - Z0), hall, T((X0 + X1) / 2, -.11, (Z0 + Z1) / 2), bevel=.03)
     for j, zz in enumerate((13.6, 4.5, -4.5)):
-        box(f'mind_runner_h{j}_edge', S(44.6, .03, 1.5), runner_edge, T(-5.5, -.045, zz), bevel=.01)
-        box(f'mind_runner_h{j}', S(44.4, .034, 1.2), runner, T(-5.5, -.043, zz), bevel=.01)
+        box(f'mind_runner_h{j}_edge', S(44.6, .018, 1.5), runner_edge, T(-5.5, -.025, zz), bevel=.004)
+        box(f'mind_runner_h{j}', S(44.4, .010, 1.2), runner, T(-5.5, -.008, zz), bevel=.003)
     for j, xx in enumerate((-27.5, -16.5, -5.5, 5.5, 16.5)):
-        box(f'mind_runner_v{j}_edge', S(1.2, .028, 18.3), runner_edge, T(xx, -.048, 4.5), bevel=.01)
-        box(f'mind_runner_v{j}', S(.95, .032, 18.1), runner, T(xx, -.046, 4.5), bevel=.01)
+        # 交差部分には横向きの絨毯だけを置く。同じ面を重ねない。
+        for segment, (near, far) in enumerate(((-3.74, 3.74), (5.26, 12.84))):
+            box(f'mind_runner_v{j}_{segment}_edge', S(1.2, .018, far - near), runner_edge, T(xx, -.025, (near + far) / 2), bevel=.004)
+            box(f'mind_runner_v{j}_{segment}', S(.95, .010, far - near - .04), runner, T(xx, -.008, (near + far) / 2), bevel=.003)
     # 外壁: 奥と左右は高く、手前は中が見えるよう低くして正面玄関を付ける
     for tag, size, loc in (
         ('back', (X1 - X0 + .5, 3.4, .25), ((X0 + X1) / 2, 1.7, Z0 - .12)),
@@ -944,7 +946,7 @@ def build_mind_space():
     for j, xx in enumerate((11 - 1.2, 11 + 1.2)):
         box(f'mind_entrance_post{j}', S(.26, 2.9, .34), oak_dark, T(xx, 1.45, Z1 + .12), bevel=.04)
     box('mind_entrance_top', S(3.1, .3, .42), oak_dark, T(11, 3.0, Z1 + .12), bevel=.05)
-    box('mind_entrance_mat', S(2.0, .03, 1.0), runner, T(11, -.04, Z1 - .7), bevel=.02)
+    box('mind_entrance_mat', S(2.0, .03, .7), runner, T(11, -.025, Z1 - .35), bevel=.01)
     for j, xx in enumerate((X0 - .12, X1 + .12)):
         box(f'mind_outer_corner{j}', S(.4, 3.5, .4), oak_dark, T(xx, 1.75, Z1 + .12), bevel=.04)
     # 廊下の鉢植えと、角の明かり
@@ -957,8 +959,8 @@ def build_mind_space():
         sphere(f'mind_hall_lamp{j}_bulb', .11, bulb, T(xx, 1.66, zz), seg=12)
     # 広間: 練習の記録を貼る掲示板と長いす
     box('mind_lobby_rug', S(7.6, .03, 4.6), runner, T(11, -.045, 9.3), bevel=.02)
-    box('mind_lobby_rug_in', S(7.1, .032, 4.1), runner_edge, T(11, -.043, 9.3), bevel=.02)
-    box('mind_lobby_rug_in2', S(6.8, .034, 3.8), runner, T(11, -.041, 9.3), bevel=.02)
+    box('mind_lobby_rug_in', S(7.1, .012, 4.1), runner_edge, T(11, -.018, 9.3), bevel=.004)
+    box('mind_lobby_rug_in2', S(6.8, .010, 3.8), runner, T(11, 0, 9.3), bevel=.003)
     box('mind_board', S(5.4, 3.0, .12), oak_dark, T(11, 2.3, 7.6), bevel=.05)
     box('mind_board_face', S(5.1, 2.7, .13), paper, T(11, 2.3, 7.61), bevel=.03)
     for j, xx in enumerate((8.7, 13.3)):

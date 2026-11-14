@@ -1,19 +1,19 @@
 import assert from 'node:assert/strict';
-import { workFrame, frameOf, stepNote, unitCount, readout, tuneChange, explainNeural, rouletteTurn, rouletteSector } from '../src/ui/neural-explanation.js';
+import { workFrame, frameOf, stepNote, unitCount, readout, tuneChange, explainNeural, rouletteTurn, rouletteSector, arrangeNote } from '../src/ui/neural-explanation.js';
 import proportional from '../src/model/chips/sampler-proportional.js';
 import { createNeural } from '../src/model/neural.js';
 
-// 学習: 重みを 4 個ひと組で動かして見せる
+// 学習: 重みを1個ずつ動かして見せる
 const tune = { label: '注意 Q', kind: 'tune', before: [-.2, .3, 0, .1, .5, .5], values: [.1, -.4, .2, .1, .5, .6] };
 const saved = structuredClone(tune);
-assert.equal(unitCount(tune), 2);
-assert.deepEqual(workFrame(tune, 0), { index: 0, phase: 0, count: 2 });
-assert.deepEqual(workFrame(tune, .75), { index: 1, phase: .5, count: 2 });
-assert.deepEqual(workFrame(tune, 1), { index: 1, phase: 1, count: 2 });
-assert.deepEqual(tuneChange(tune, 0), { index: 1, before: .3, after: -.4 });
+assert.equal(unitCount(tune), 6);
+assert.deepEqual(workFrame(tune, 0), { index: 0, phase: 0, count: 6 });
+assert.deepEqual(workFrame(tune, .75), { index: 4, phase: .5, count: 6 });
+assert.deepEqual(workFrame(tune, 1), { index: 5, phase: 1, count: 6 });
+assert.deepEqual(tuneChange(tune, 1), { index: 1, before: .3, after: -.4 });
 const learning = explainNeural({ mode: 'learn', epoch: 4, operation: { index: 0, k: .25 }, stages: [tune] });
 assert.match(learning.title, /れんしゅう 4/);
-assert.match(learning.body, /1周分/);
+assert.match(learning.detail, /1周分/);
 assert.match(learning.detail, /0\.3000 → -0\.4000/);
 assert.deepEqual(tune, saved, 'explanations must not change model values');
 
@@ -64,3 +64,9 @@ for (const r of [0, .099999, .1, .79999, .8, .999999]) {
 }
 assert.equal(rouletteTurn(0, .4), 0);
 console.log('OK 部屋ごとの記録が実計算と一致・手順の区切り・説明の実数値・学習集約の明示・モデル値の不変性');
+
+assert.match(arrangeNote('<user>', 1, '<bos>').body, /あなた/);
+assert.match(arrangeNote('あ', 3, 'や').body, /「や」の次/);
+assert.match(stepNote(tune, { index: 1, phase: 1 }, 0), /減らしました/);
+assert.match(stepNote(tune, { index: 0, phase: 1 }, 0), /増やしました/);
+assert.match(stepNote(tune, { index: 3, phase: 1 }, 0), /変わっていません/);

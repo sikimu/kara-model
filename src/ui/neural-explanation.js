@@ -6,7 +6,7 @@ export function unitCount(stage) {
   const kind = stage.kind ?? 'tune';
   if (kind === 'match' || kind === 'mix') return stage.tokens.length;
   if (kind === 'score') return stage.candidates.length;
-  if (kind === 'tune') return Math.ceil(stage.values.length / 4);
+  if (kind === 'tune') return stage.values.length;
   return stage.values.length;
 }
 
@@ -24,13 +24,14 @@ export function frameOf(stage, operation) {
   return operation.hold != null ? { index: operation.hold, phase: 1, count: frame.count } : frame;
 }
 
-// tune の 1 手順（4 個ひと組）の中で、いちばん大きく動いた重み。
+// 重みも1個ずつ扱う。演出用の値を計算し直さず、記録された前後を返す。
 export function tuneChange(stage, unit) {
-  let best = unit * 4;
-  for (let j = unit * 4; j < Math.min(stage.values.length, unit * 4 + 4); j++) {
-    if (Math.abs(stage.values[j] - (stage.before?.[j] ?? 0)) > Math.abs(stage.values[best] - (stage.before?.[best] ?? 0))) best = j;
-  }
-  return { index: best, before: stage.before?.[best] ?? 0, after: stage.values[best] };
+  return { index: unit, before: stage.before?.[unit] ?? 0, after: stage.values[unit] };
+}
+
+export function arrangeNote(token, index, previous) {
+  const special = { '<bos>': '会話の始まりを知らせる目印です。話した文字ではありません。', '<user>': 'この後は、あなたのことばだと知らせる目印です。', '<assistant>': 'この後は、コトが返事をする番だと知らせる目印です。', '<turn>': 'ここでひとりの発言が終わった、という区切りです。', '<eos>': 'この会話が終わった、という目印です。' };
+  return { title: `${index + 1}番に「${name(token)}」を置いた`, body: special[token] ?? `聞いた文字「${name(token)}」の札です。${previous == null ? '最初の位置' : `「${name(previous)}」の次`}に置きました。同じ文字でも、何番めにあるかで前後のつながりが変わります。`, detail: '左から右へ、聞いた順を保存します。文字をあいうえお順に並べ替える作業ではありません。' };
 }
 
 const num = x => `${x < 0 ? '−' : ''}${Math.abs(x).toFixed(2)}`;
@@ -70,8 +71,9 @@ export function stepNote(stage, frame, index) {
     ? `${num(stage.before[i])} はマイナスなので、しぼり機で ${num(stage.values[i])} まで小さくつぶれました。「この特徴は当てはまらない」という合図は弱めて通します。`
     : `${num(stage.before[i])} はプラスなので、ほぼそのまま ${num(stage.values[i])} で通りました。「この特徴が当てはまる」という合図はそのまま次へ渡します。`;
   if (kind === 'score') return `「${name(stage.candidates[i].token)}」の点は ${stage.candidates[i].score.toFixed(2)}。奥に並べた手がかりの12個の数と、「${name(stage.candidates[i].token)}」用に覚えている12個の数を、1つずつ掛けて足した値です。点が高いほど、次に来そうな文字です。`;
-  const c = tuneChange(stage, i), up = c.after > c.before;
-  return `この4個の目もりを、矢印の向きへ動かしました。いちばん動いたのは ${c.index + 1}番めで、${c.before.toFixed(4)} から ${c.after.toFixed(4)} へ（${up ? '大きく' : '小さく'}しました）。この向きは、後ろの部屋から届いた「はずれの知らせ」から計算したものです。`;
+  const c = tuneChange(stage, i), delta = c.after - c.before;
+  return delta === 0 ? `${i + 1}番の重みは ${c.before.toFixed(4)} のままでした。この周の練習では、値は変わっていません。`
+    : `${i + 1}番の重みを ${Math.abs(delta).toFixed(4)} ${delta > 0 ? '増やしました' : '減らしました'}。${c.before.toFixed(4)} → ${c.after.toFixed(4)}。重みは、次の計算にも使う「調節できる数」です。動かす向きも量も重みごとに違います。`;
 }
 
 export function rouletteTurn(k, r) { return (3 + r) * (1 - (1 - Math.max(0, Math.min(1, k))) ** 3); }
@@ -83,6 +85,7 @@ export function rouletteSector(rows, r) {
 
 export function explainNeural(v) {
   if (v.holdNote) return v.holdNote;
+  if (v.arrange) return arrangeNote(v.arrange.tokens[v.arrange.index], v.arrange.offset + v.arrange.index, v.contextCards?.at(-1));
   if (v.quiz && !v.operation && !v.errorNote) {
     const q = v.quiz, said = q.context.map(name).join('');
     return { title: `れんしゅう ${v.epoch ?? 1} / 12 · 次の文字を 当ててみる`,
@@ -106,8 +109,8 @@ export function explainNeural(v) {
       const c = tuneChange(stage, f.index);
       return {
         title: `れんしゅう ${v.epoch ?? 1} / 12 · 「${stage.label}」を ちょうせい`,
-        body: step ?? '届いた「はずれの知らせ」に合わせて、この部屋の道具の目もり（重み）を、はずれが減る向きへ少しずつ動かします（勾配降下）。矢印が動かす向き、うすい印が動かす前の高さです。棒はこの部屋の重みのうち先頭の24個で、1周分の調整の前と後を見せています。1例ごとの計算をすべて再生しているわけではありません。',
-        detail: `${at} 組め · いちばん動いた重み ${c.index + 1}：${c.before.toFixed(4)} → ${c.after.toFixed(4)}`,
+        body: step ?? '重みは、計算に使う調節できる数です。まず今の値を見て、増やすか減らすかを確かめ、1個だけ動かします。薄い印は変更前の位置です。',
+        detail: `${at} 個め · ${c.before.toFixed(4)} → ${c.after.toFixed(4)}（1周分の更新の前後）`,
       };
     }
     const [title, body] = steps[kind === 'add' ? (v.operation.index === 0 ? 'add0' : 'add3') : kind];
@@ -118,7 +121,7 @@ export function explainNeural(v) {
   const tokens = t?.tokens ?? (t?.token != null ? [t.token] : []);
   if (tokens.length) {
     const pack = tokens.length > 1 ? .3 : .2;
-    const action = t.k < pack ? 'かばんに しまう' : t.k > 1 - pack ? '机に ならべる' : 'かばんで 運ぶ';
+    const action = t.k < pack ? '手に 取る' : t.k > 1 - pack ? '机に ならべる' : '手に持って 運ぶ';
     const what = tokens.length > 1 ? `${tokens.length}まいの 札` : `「${name(tokens[0])}」`;
     const from = (t.froms?.[0] ?? t.from).lane;
     return { title: `${what}を ${action}`,
@@ -128,7 +131,7 @@ export function explainNeural(v) {
         : '聞いたことばを1文字ずつの札にして、文脈の部屋に順番どおり並べます。「だれが話したか」「どこで交代したか」も札になっています。',
       detail: v.attentionFocus != null ? `この位置を見る割合：${(v.attention.weights[v.attentionFocus] * 100).toFixed(2)}%` : '札の1まいが、計算の単位（トークン）です。' };
   }
-  if (v.packet) return { title: '計算した数を 次の部屋へ', body: '前の部屋でできた数をかばんに入れて運び、次の部屋の材料にします。', detail: `${v.packet.length}個の数。金色はプラス、青はマイナスです。` };
+  if (v.packet) return { title: '計算した数を 次の部屋へ', body: '前の部屋でできた数を手に持って運び、次の部屋の材料にします。', detail: `${v.packet.length}個の数。金色はプラス、青はマイナスです。` };
   if (v.phase === 'pick') return { title: '確率に したがって えらぶ', body: 'いちばん確率が高い文字に決め打ちせず、確率の幅に合わせたルーレットで選びます。', detail: '選ばれた札は、コトが返事の部屋へ運びます。' };
   if (v.endText) return { title: v.endText, body: 'この返事の計算が終わりました。眠っておぼえた重みは保存され、次の会話でも使われます。', detail: '' };
   return { title: v.mode === 'learn' ? '聞いた会話を 思い出す' : v.mode === 'explore' ? '頭の中の 部屋を 見てまわる' : '届いた ことばを 受けとる',

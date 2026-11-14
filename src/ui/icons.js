@@ -3,9 +3,8 @@
 const svg = (body, view = '0 0 32 32') => `<svg viewBox="${view}" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
 
 export const ICONS = {
+  dice: svg('<rect x="5" y="5" width="22" height="22" rx="5" fill="#f4e5bf"/><g fill="currentColor" stroke="none"><circle cx="11" cy="11" r="2"/><circle cx="21" cy="11" r="2"/><circle cx="16" cy="16" r="2"/><circle cx="11" cy="21" r="2"/><circle cx="21" cy="21" r="2"/></g>'),
   basket: svg('<path d="M5 13h22l-3 14H8Z" fill="#ead2a0"/><path d="m10 13 6-9 6 9M11 17v6m5-6v6m5-6v6"/>'),
-  chip: svg('<rect x="8" y="7" width="16" height="18" rx="3" fill="#d9e8b8"/><path d="M4 11h4m-4 5h4m-4 5h4m16-10h4m-4 5h4m-4 5h4M12 3v4m8-4v4m-8 18v4m8-4v4"/><circle cx="16" cy="16" r="3" fill="currentColor"/>'),
-  temperature: svg('<path d="M13 19V7a3 3 0 0 1 6 0v12a6 6 0 1 1-6 0Z" fill="#f7d0ae"/><path d="M16 11v12"/><circle cx="16" cy="24" r="2" fill="currentColor"/>'),
   link: svg('<circle cx="7" cy="8" r="4" fill="#dce8ba"/><circle cx="25" cy="9" r="4" fill="#dce8ba"/><circle cx="16" cy="25" r="4" fill="#dce8ba"/><path d="m10 10 4 11m8-9-4 9M11 8h10"/>'),
   empty: svg('<path d="M5 7h22v15H15l-6 5v-5H5Z" fill="#fff"/>'),
   // 話す（吹き出し）

@@ -1,0 +1,152 @@
+{
+  "date": "2026-11-14T08:33:23.305Z",
+  "environment": {
+    "cpu": "11th Gen Intel(R) Core(TM) i7-1185G7 @ 3.00GHz",
+    "logicalCpus": 8,
+    "platform": "win32",
+    "browser": "Chrome/157.0.8103.52",
+    "worker": true,
+    "animation": false,
+    "gpu": false
+  },
+  "checks": {
+    "gradientValuesChecked": 66,
+    "maxRelativeGradientError": 5.778415192672129e-9,
+    "causalMask": true,
+    "initialLoss": 2.5370958033568223,
+    "finalLoss": 0.9771854219315494
+  },
+  "tokenizer": {
+    "size": 358,
+    "mergeCount": 100,
+    "multiCharacterExamples": [
+      "やすみ",
+      "ユーザー：何",
+      "りんご",
+      "が好き。",
+      "くて",
+      "鳴く",
+      "鳴くよ。",
+      "いた",
+      "遊ぼう",
+      "ユーザー：今",
+      "日は",
+      "いね。"
+    ]
+  },
+  "cases": [
+    {
+      "config": {
+        "window": 128,
+        "dim": 48,
+        "layers": 3,
+        "heads": 3,
+        "vocab": 1024
+      },
+      "parameters": 160768,
+      "fileBytes": 649229,
+      "sequenceLengths": [
+        8,
+        6,
+        14,
+        14,
+        11,
+        6,
+        14,
+        11,
+        10,
+        16,
+        13,
+        18,
+        21,
+        20,
+        9,
+        11,
+        16,
+        9,
+        13,
+        9
+      ],
+      "trainingUpdates": 240,
+      "trainingMs": 3578.400000035763,
+      "initialLoss": 6.960802934714955,
+      "finalLoss": 4.808528003825478,
+      "fullInference": {
+        "medianMs": 61.5,
+        "minMs": 57.69999998807907,
+        "maxMs": 62.60000002384186,
+        "repeats": 5
+      },
+      "fullTraining": {
+        "medianMs": 152.70000004768372,
+        "minMs": 141.5,
+        "maxMs": 176.5,
+        "repeats": 5
+      },
+      "generate30AtFullContext": {
+        "medianMs": 1832.800000011921,
+        "minMs": 1755.5,
+        "maxMs": 1863.3999999761581,
+        "repeats": 3
+      },
+      "exactSaveReload": true
+    },
+    {
+      "config": {
+        "window": 256,
+        "dim": 96,
+        "layers": 3,
+        "heads": 3,
+        "vocab": 2048
+      },
+      "parameters": 641024,
+      "fileBytes": 2570262,
+      "sequenceLengths": [
+        8,
+        6,
+        14,
+        14,
+        11,
+        6,
+        14,
+        11,
+        10,
+        16,
+        13,
+        18,
+        21,
+        20,
+        9,
+        11,
+        16,
+        9,
+        13,
+        9
+      ],
+      "trainingUpdates": 240,
+      "trainingMs": 15673.300000011921,
+      "initialLoss": 7.642276424734641,
+      "finalLoss": 4.670403594265197,
+      "fullInference": {
+        "medianMs": 618,
+        "minMs": 500,
+        "maxMs": 643.3999999761581,
+        "repeats": 5
+      },
+      "fullTraining": {
+        "medianMs": 1370.199999988079,
+        "minMs": 1331.800000011921,
+        "maxMs": 1587.5999999642372,
+        "repeats": 5
+      },
+      "generate30AtFullContext": {
+        "medianMs": 17605.600000023842,
+        "minMs": 17429.30000001192,
+        "maxMs": 17957.5,
+        "repeats": 3
+      },
+      "exactSaveReload": true
+    }
+  ],
+  "uiTimerTicks": 948
+}

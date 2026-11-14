@@ -1,15 +1,17 @@
 // 起動と画面切り替え
-// 画面は 3D の家だけ。部屋のもの（キャラクター・ドア・ベッド・黒板）を押すと、
+// 画面は 3D の家だけ。部屋のもの（キャラクター・ドア・ベッド・黒板・机の本）を押すと、
 // その操作の入力が下に出る。設定は右上の歯車にまとめる。
 
 import { createModel } from './model/model.js';
+import { PRESETS, CONVERSATION_LIMITS, MERGE_LIMITS, DEFAULT_LIMITS, presetOf } from './model/config.js';
 import { createStage } from './ui/stage.js';
 import { createTalk } from './ui/talk.js';
 import { createListen } from './ui/listen.js';
-import { createJournal, createMemory, createChips } from './ui/items.js';
+import { createJournal, createMemory, createStudy } from './ui/items.js';
 import { createSleep } from './ui/sleep.js';
+import { createInspector } from './ui/inspector.js';
 import { ICONS, iconButton } from './ui/icons.js';
-import { save, load, clear } from './save.js';
+import { save, load, clear, sizeOf } from './save.js';
 import { sound } from './ui/sound.js';
 
 // 演出の速度。値は 1 手順あたりの待ち時間（ミリ秒）。0 は再生しない
@@ -35,7 +37,7 @@ const PARTS = [
   { id: 'sleep', create: createSleep },
   { id: 'journal', create: createJournal },
   { id: 'memory', create: createMemory },
-  { id: 'chips', create: createChips },
+  { id: 'study', create: createStudy },
 ];
 
 const app = document.getElementById('app');
@@ -116,7 +118,6 @@ function range(min, max, step, value, onInput) {
   return input;
 }
 
-// 速さ（かめ ←→ うさぎ）
 const slider = range(0, 9, 1, speedIndex, (value) => { speedIndex = value; updateSpeed(); saveUI(); });
 slider.className = 'speed-slider';
 slider.setAttribute('aria-label', '演出の速さ');
@@ -149,18 +150,20 @@ soundBox.append(
   row('sfx', '効果音', toggle(sound.settings.sfx, (value) => sound.set({ sfx: value }))),
   row('sfx', '音量', range(0, 1, 0.05, sound.settings.volume, (value) => sound.set({ volume: value }))),
 );
+// このコトの構成（作成後は変えない）
+const configNote = document.createElement('p');
+configNote.className = 'settings-config';
 
 const resetButton = document.createElement('button');
 resetButton.type = 'button';
 resetButton.className = 'reset-button';
 resetButton.textContent = '最初からやり直す';
-resetButton.title = '育てた中身（集計表と短期記憶）をすべて消して、空の状態に戻します';
+resetButton.title = '育てた中身（原本・対応表・会話の本）をすべて消して、新しいコトを作ります';
 resetButton.addEventListener('click', reset);
 const closeButton = iconButton('close', '閉じる', 'settings-close');
 closeButton.addEventListener('click', () => settings.close());
-settings.append(closeButton, settingsTitle, playBox, soundBox, resetButton);
-settingsButton.addEventListener('click', () => settings.showModal());
-// 外側（背景）を押しても閉じる
+settings.append(closeButton, settingsTitle, playBox, soundBox, configNote, resetButton);
+settingsButton.addEventListener('click', () => { describeConfig(); settings.showModal(); });
 settings.addEventListener('click', (ev) => {
   const r = settings.getBoundingClientRect();
   if (ev.target === settings && (ev.clientX < r.left || ev.clientX > r.right || ev.clientY < r.top || ev.clientY > r.bottom)) settings.close();
@@ -174,9 +177,14 @@ const dock = document.createElement('div');
 dock.className = 'dock';
 dock.hidden = true;
 
-app.replaceChildren(stageRoot, logo, hud, dock, settings);
+// 保存できなかったときの知らせ
+const saveWarning = document.createElement('p');
+saveWarning.className = 'save-warning';
+saveWarning.setAttribute('role', 'alert');
+saveWarning.hidden = true;
 
-// スマホでキーボードが出たとき、見えている範囲に画面を収める
+app.replaceChildren(stageRoot, logo, hud, dock, settings, saveWarning);
+
 if (window.visualViewport && matchMedia('(pointer: coarse)').matches) {
   const fit = () => {
     app.style.height = `${window.visualViewport.height}px`;
@@ -186,9 +194,24 @@ if (window.visualViewport && matchMedia('(pointer: coarse)').matches) {
   window.visualViewport.addEventListener('scroll', fit);
 }
 
-const model = createModel();
-const saved = load();
-if (saved) model.restore(saved);
+// ---- モデルの用意。保存があれば復元し、壊れていれば消さずに知らせる ----
+let model = createModel();
+const loaded = load();
+let saveState = loaded.status; // 'none' | 'ok' | 'invalid' | 'old'
+if (saveState === 'ok') {
+  try { model = createModel({ saved: loaded.data }); } catch (e) { console.warn('保存データを読めません', e); saveState = 'invalid'; }
+}
+function describeConfig() {
+  const c = model.config, l = model.limits, preset = PRESETS.find(p => p.dim === c.dim && p.window === c.window);
+  configNote.textContent = `このコト: ${preset?.label ?? `文脈${c.window}・${c.dim}次元・${c.layers}層${c.heads}ヘッド`}／会話の本 ${l.conversations} 件・まとまり ${l.merges} 個。構成は作成後に変えません（別の構成は新しいコトとして作ります）。保存 約${Math.round(sizeOf(model.snapshot()) / 1024)} KB`;
+}
+// 整合した 1 組をまるごと保存する。失敗したら知らせる（握りつぶさない）
+function persist(data = model.snapshot()) {
+  const ok = save(data);
+  saveWarning.hidden = ok;
+  if (!ok) saveWarning.textContent = '保存できませんでした。容量が足りないかもしれません。前回の保存はそのまま残っています。';
+  return ok;
+}
 
 // 読み込み中からタイトルを表示し、部屋の操作は開始ボタンを押したあとに有効にする。
 let started = false;
@@ -208,9 +231,58 @@ stageRoot.inert = true;
 hud.inert = true;
 logo.hidden = true;
 
+// ---- コトを作る（はじめから）。検証済みの組み合わせから選ぶ ----
+const birth = document.createElement('dialog');
+birth.className = 'birth';
+birth.setAttribute('aria-labelledby', 'birth-title');
+const birthTitle = document.createElement('h2'); birthTitle.id = 'birth-title'; birthTitle.textContent = 'コトを つくる';
+const birthNote = document.createElement('p'); birthNote.textContent = 'ふだんはこのまま始められます。頭の中の大きさは作ったあとで変えられないので、変えたいときは新しいコトを作ります。大きくすると計算と保存の量が増えます。必ず賢くなるわけではありません。';
+const summary = document.createElement('dl'); summary.className = 'birth-summary';
+const details = document.createElement('details');
+const detailsSummary = document.createElement('summary'); detailsSummary.textContent = '詳しい設定';
+const choice = { preset: PRESETS[0].id, conversations: DEFAULT_LIMITS.conversations, merges: DEFAULT_LIMITS.merges };
+function selectRow(labelText, options, value, note, onChange) {
+  const wrap = document.createElement('label'); wrap.className = 'birth-row';
+  const name = document.createElement('span'); name.textContent = labelText;
+  const select = document.createElement('select');
+  for (const [v, text] of options) { const o = document.createElement('option'); o.value = String(v); o.textContent = text; o.selected = String(v) === String(value); select.append(o); }
+  select.addEventListener('change', () => { onChange(select.value); renderSummary(); });
+  const small = document.createElement('small'); small.textContent = note;
+  wrap.append(name, select, small);
+  return wrap;
+}
+details.append(detailsSummary,
+  selectRow('頭の中の大きさ（文脈・次元・層・ヘッド）', PRESETS.map(p => [p.id, p.label]), choice.preset, '一度に参照できる文章の長さ（トークンは 1 文字とは限らない）、1 トークンを表す数の個数、加工の段数、見かたの組の数。検証済みの組み合わせだけを選べます。', v => { choice.preset = v; }),
+  selectRow('会話の本に残す会話の数', CONVERSATION_LIMITS.map(n => [n, `${n} 件`]), choice.conversations, '机の勉強で読み返せる会話の量。文脈の長さとは別の設定です。超えたら古い会話から外れますが、覚えたまとまりや原本は消えません。', v => { choice.conversations = Number(v); }),
+  selectRow('まとまりの登録数', MERGE_LIMITS.map(n => [n, `${n} 個`]), choice.merges, '勉強で見つけた複数文字のまとまりを登録できる数。1 文字の枠は別で、満杯でも新しい文字は覚えます。上限を選ぶことは、その数のことばを最初から知っていることではありません。', v => { choice.merges = Number(v); }),
+);
+const birthGo = document.createElement('button'); birthGo.type = 'button'; birthGo.className = 'birth-go'; birthGo.textContent = 'この設定で はじめる';
+const birthCancel = iconButton('close', '閉じる', 'birth-cancel');
+birthCancel.addEventListener('click', () => birth.close());
+birth.append(birthCancel, birthTitle, birthNote, summary, details, birthGo);
+app.append(birth);
+function renderSummary() {
+  const p = presetOf(choice.preset);
+  summary.replaceChildren();
+  for (const [k, v] of [['文脈の上限', `${p.window} トークン`], ['次元数', String(p.dim)], ['層数', String(p.layers)], ['ヘッド数', String(p.heads)], ['会話の本', `${choice.conversations} 件`], ['まとまりの登録', `${choice.merges} 個`]]) {
+    const dt = document.createElement('dt'); dt.textContent = k; const dd = document.createElement('dd'); dd.textContent = v; summary.append(dt, dd);
+  }
+}
+renderSummary();
+birthGo.addEventListener('click', () => {
+  const fresh = createModel({ config: presetOf(choice.preset), limits: { conversations: choice.conversations, merges: choice.merges } });
+  if (saveState === 'old' || saveState === 'invalid') clear(); // 旧形式・壊れたデータの消去はここで明示的に行う
+  model.adopt(fresh);
+  saveState = persist() ? 'ok' : saveState;
+  birth.close();
+  describeConfig();
+  enter();
+});
+
 let mind;
+const inspector = createInspector(app, model);
 try {
-  mind = await createStage(stageRoot, model);
+  mind = await createStage(stageRoot, model, inspector);
 } catch (e) {
   titleStatus.textContent = 'おうちを読み込めませんでした。通信を確認して、もう一度お試しください。';
   startButton.textContent = 'もう一度読み込む';
@@ -219,12 +291,12 @@ try {
   stageRoot.textContent = '3D の部屋を読み込めませんでした。通信を確認して、読み込み直してください。';
   throw e;
 }
-mind.syncMemory(model.shortMemory);
+mind.syncMemory(model.pending);
 
 // ---- 操作の状態 ----
 let busy = false;      // 演出中、または頭の中をのぞいている
 let exploring = false;
-let openPart = null;   // 開いている入力（'talk' | 'listen' | 'sleep' | null）
+let openPart = null;   // 開いている入力（'talk' | 'listen' | 'sleep' | 'journal' | 'memory' | 'study' | null）
 const partRoots = {};
 const lessons = [['talk', 'コトと話す', 'talk'], ['listen', 'まちへ出かける', 'walk'], ['sleep', 'ひと休みする', 'sleep'], ['talk', 'もう一度話す', 'talk']];
 const guideTarget = iconButton('talk', 'コト', 'tutorial-target');
@@ -244,7 +316,7 @@ function placeGuideTarget() {
   }
 }
 window.addEventListener('resize', () => requestAnimationFrame(placeGuideTarget));
-setInterval(placeGuideTarget, 100); // 散歩するコトにも操作目印がついていく。
+setInterval(placeGuideTarget, 100);
 function complete(action, reply) {
   if (lessons[model.tutorial.step]?.[0] === action) {
     const step = model.tutorial.step;
@@ -262,21 +334,19 @@ function complete(action, reply) {
 function refresh() {
   placeGuideTarget();
   app.dataset.busy = String(busy);
-  mind.setInteractive(started && !busy && openPart !== 'chips');
-  dock.hidden = busy || openPart === null || openPart === 'chips';
+  mind.setInteractive(started && !busy);
+  dock.hidden = busy || openPart === null;
   for (const [id, root] of Object.entries(partRoots)) root.hidden = id !== openPart;
   homeButton.hidden = !exploring;
   pauseButton.hidden = !busy || exploring;
   stepButton.hidden = !busy || exploring;
   skipButton.hidden = !busy || exploring;
   skipButton.disabled = skipOnce;
-  stageRoot.inert = !started || openPart === 'chips';
-  hud.hidden = openPart === 'chips';
-  logo.hidden = !started || openPart === 'chips';
+  stageRoot.inert = !started;
+  logo.hidden = !started;
 }
 
 function setPart(id) {
-  if (openPart === 'chips' && id !== 'chips') partRoots.chips.dispatchEvent(new Event('close'));
   openPart = id;
   refresh();
   if (id) partRoots[id].dispatchEvent(new Event('open'));
@@ -290,10 +360,11 @@ async function run(fn) {
   try {
     await fn();
   } finally {
-    save(model);
+    persist();
     busy = false;
     skipOnce = false;
     mind.setFastForward(false);
+    mind.syncMemory(model.pending);
     refresh();
   }
 }
@@ -304,18 +375,18 @@ async function show(trace, onSkip) {
     await mind.play(trace, getStep);
   } else {
     onSkip?.();
-    mind.syncMemory(model.shortMemory);
+    mind.syncMemory(model.pending);
   }
 }
 
 // 最初からやり直す。セーブを消して読み込み直す
 function reset() {
-  if (!confirm('育てた中身をすべて消して、最初からやり直しますか？')) return;
+  if (!confirm('育てた中身をすべて消して、新しいコトを作りますか？')) return;
   clear();
   location.reload();
 }
 
-// 頭の中をのぞく（集計表の全体をいつでも見られる）。黒板を押すと開き、家のボタンで閉じる
+// 頭の中をのぞく。黒板を押すと開き、家のボタンで閉じる
 async function toggleExplore() {
   if (exploring ? homeButton.disabled : busy) return;
   homeButton.disabled = true;
@@ -325,6 +396,7 @@ async function toggleExplore() {
     refresh();
     await mind.toggleExplore();
   } else {
+    inspector.close();
     await mind.toggleExplore();
     exploring = false;
     busy = false;
@@ -334,19 +406,18 @@ async function toggleExplore() {
 }
 homeButton.addEventListener('click', toggleExplore);
 
-const ctx = { model, mind, show, run, getStep, complete, close: () => setPart(null),
-  acknowledge: () => { model.tutorial.reflection = null; save(model); refresh(); },
-  changed: () => { save(model); mind.syncMemory(model.shortMemory); } };
+const ctx = { model, mind, show, run, getStep, complete, inspector, persist, close: () => setPart(null),
+  acknowledge: () => { model.tutorial.reflection = null; persist(); refresh(); },
+  changed: () => { persist(); mind.syncMemory(model.pending); } };
 for (const part of PARTS) {
   const root = document.createElement('section');
   root.className = `part ${part.id}`;
   root.hidden = true;
   part.create(root, ctx);
   partRoots[part.id] = root;
-  (part.id === 'chips' ? app : dock).append(root);
+  dock.append(root);
 }
 
-// 部屋のものが押された。同じものをもう一度押すか、何もないところを押すと閉じる
 mind.onAction((id) => {
   mind.showIdle();
   if (id === 'explore') {
@@ -354,30 +425,41 @@ mind.onAction((id) => {
     void toggleExplore();
   } else {
     setPart(id === openPart ? null : id);
-    save(model); // 操作を切り替えるたびに保存する
   }
 });
 document.addEventListener('keydown', (ev) => {
-  if (!started || ev.key !== 'Escape' || settings.open) return;
+  if (!started || ev.key !== 'Escape' || settings.open || inspector.isOpen) return;
   if (exploring) void toggleExplore();
   else if (!busy) setPart(null);
 });
 
-startButton.textContent = saved ? 'つづきから' : 'はじめる';
-titleStatus.textContent = saved ? 'コトとの暮らしは、ここからつづきます。' : '小さな出会いから、はじめよう。';
-startButton.disabled = false;
-startButton.addEventListener('click', () => {
+function enter() {
   started = true;
   titleScreen.hidden = true;
   stageRoot.inert = false;
   hud.inert = false;
   logo.hidden = false;
+  mind.syncMemory(model.pending);
   refresh();
   if (!guideTarget.hidden) guideTarget.focus({ preventScroll: true });
   else settingsButton.focus({ preventScroll: true });
+}
+const messages = {
+  ok: ['つづきから', 'コトとの暮らしは、ここからつづきます。'],
+  none: ['はじめる', '小さな出会いから、はじめよう。'],
+  old: ['はじめる', '前の形式の保存があります。新しいコトを作ると置き換えます。'],
+  invalid: ['はじめから（保存を消す）', '保存データを読めませんでした。消さずに残してあります。新しく作ると置き換えます。'],
+};
+[startButton.textContent, titleStatus.textContent] = messages[saveState];
+startButton.disabled = false;
+startButton.addEventListener('click', () => {
+  if (saveState === 'ok') { describeConfig(); enter(); return; }
+  if (saveState === 'invalid' && !confirm('読めない保存データを消して、新しいコトを作りますか？')) return;
+  birth.showModal();
 });
 refresh();
 
 // コンソールから確認できるように公開する
 window.kara = model;
 window.karaPoint = mind.hotPoint;
+window.karaInspector = inspector;

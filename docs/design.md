@@ -1,6 +1,8 @@
 # 仕様
 
-2026-11-14更新: 体験の軸・3Dの頭の中・神視点・家の散歩については [experience.md](experience.md) を優先する。以下の集計表と2D地図の記述は旧実験方式の仕様として残す。ニューラル計算の仕様は [neural-model.md](neural-model.md)。
+2026-11-14更新: 原本・作業用バインダー、説明、閲覧UIは [experience.md](experience.md) を優先する。計算は [neural-model.md](neural-model.md)、停止中の作業状態は [session-handoff.md](session-handoff.md) を参照する。
+
+チップの付け替え、旧集計方式と互換保存は 2026-11-14 の実装再開で削除した。以下のチップ・集計表・2D地図・専用作業台・旧セーブ互換は過去の設計記録であり、維持・追加実装の要件ではない。現在の計算は [neural-model.md](neural-model.md) を参照。
 
 ゲーム名は「からっぽのコト」。添える言葉は「聞いて、眠って、ことばが育つ。」。キャラクター・モデルの種別は引き続き「空モデル」と呼ぶ。
 

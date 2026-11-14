@@ -1,4 +1,4 @@
-// 睡眠。ベッドを押すと出る。短期記憶を再生して集計表を更新する。学習が起きるのはここだけ。
+// 睡眠。ベッドを押すと出る。学習待ちの会話で原本を書き直す。学習が起きるのはここだけ。
 
 export function createSleep(root, { model, mind, show, run, complete, close, getStep }) {
   const moon = document.createElement('span');
@@ -17,7 +17,7 @@ export function createSleep(root, { model, mind, show, run, complete, close, get
   root.replaceChildren(moon, hint, button);
 
   root.addEventListener('open', () => {
-    const count = model.shortMemory.length;
+    const count = model.pending.length;
     hint.textContent = count === 0
       ? 'まずはコトに話しかけるか、外へ聞きに行ってみよう'
       : '今日はここで、ひとやすみしようか。';
@@ -27,9 +27,11 @@ export function createSleep(root, { model, mind, show, run, complete, close, get
   button.addEventListener('click', () => {
     close();
     run(async () => {
+      // 計算は寝入りの演出と並行して進める。演出の速さで更新結果は変わらない
+      const learning = model.sleepAsync();
       await mind.prepareSleep(getStep);
       try {
-        const { trace } = await model.sleepAsync();
+        const { trace } = await learning;
         await show(trace);
       } finally {
         await mind.finishSleep(getStep);

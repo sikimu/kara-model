@@ -1,0 +1,631 @@
+{
+  "date": "2026-11-14T09:22:57.657Z",
+  "environment": {
+    "runtime": "v24.19.0",
+    "cpu": "11th Gen Intel(R) Core(TM) i7-1185G7 @ 3.00GHz"
+  },
+  "config": {
+    "window": 128,
+    "dim": 48,
+    "layers": 3,
+    "heads": 3
+  },
+  "corpus": {
+    "trainTexts": [
+      "りんごが好き。",
+      "赤いりんご。",
+      "りんごを食べる。",
+      "青い空が好き。",
+      "青い海が好き。",
+      "海を見る。"
+    ],
+    "heldout": [
+      "赤い空を見る。",
+      "青いりんごが好き。"
+    ],
+    "pretrainEpochs": 60,
+    "continuationEpochs": 60
+  },
+  "vocabulary": {
+    "before": 19,
+    "after": 25,
+    "added": [
+      {
+        "id": 19,
+        "text": "りん",
+        "pair": [
+          2,
+          3
+        ],
+        "occurrences": 3
+      },
+      {
+        "id": 20,
+        "text": "りんご",
+        "pair": [
+          19,
+          4
+        ],
+        "occurrences": 3
+      },
+      {
+        "id": 21,
+        "text": "が好",
+        "pair": [
+          5,
+          6
+        ],
+        "occurrences": 3
+      },
+      {
+        "id": 22,
+        "text": "が好き",
+        "pair": [
+          21,
+          7
+        ],
+        "occurrences": 3
+      },
+      {
+        "id": 23,
+        "text": "が好き。",
+        "pair": [
+          22,
+          8
+        ],
+        "occurrences": 3
+      },
+      {
+        "id": 24,
+        "text": "る。",
+        "pair": [
+          14,
+          8
+        ],
+        "occurrences": 2
+      }
+    ]
+  },
+  "cases": [
+    {
+      "seed": 173,
+      "mode": "random",
+      "initial": {
+        "nllPerCharacter": 3.345538961522177,
+        "lossPerToken": 2.90916431436711,
+        "predictedTokens": 46
+      },
+      "before": {
+        "nllPerCharacter": 0.49441381559070124,
+        "lossPerToken": 0.42992505703539236,
+        "predictedTokens": 46
+      },
+      "immediate": {
+        "nllPerCharacter": 2.2991883170784435,
+        "lossPerToken": 3.171294230453025,
+        "predictedTokens": 29
+      },
+      "after": {
+        "nllPerCharacter": 0.374566497800215,
+        "lossPerToken": 0.5166434452416758,
+        "predictedTokens": 29
+      },
+      "heldoutBefore": {
+        "nllPerCharacter": 1.5349927236339123,
+        "lossPerToken": 1.3644379765634775,
+        "predictedTokens": 18
+      },
+      "heldoutImmediate": {
+        "nllPerCharacter": 2.258165353068062,
+        "lossPerToken": 3.0108871374240826,
+        "predictedTokens": 12
+      },
+      "heldoutAfter": {
+        "nllPerCharacter": 2.253616688478319,
+        "lossPerToken": 3.004822251304425,
+        "predictedTokens": 12
+      },
+      "noGrowthContinuation": {
+        "train": {
+          "nllPerCharacter": 0.33270455757869266,
+          "lossPerToken": 0.28930831093799364,
+          "predictedTokens": 46
+        },
+        "heldout": {
+          "nllPerCharacter": 1.7832473957684076,
+          "lossPerToken": 1.5851087962385846,
+          "predictedTokens": 18
+        }
+      },
+      "newProbabilityMassOnOldInput": 0.05576465456474654,
+      "pretrainMs": 1106.8761000000002,
+      "continuationMs": 678.2754999999997,
+      "fileBytes": 256155,
+      "oldWeightsAndIDsPreserved": true,
+      "oldLogitsPreservedOnSameInput": true,
+      "newEmbeddingUpdated": true,
+      "exactSaveReload": true,
+      "secondGrowthCount": 1
+    },
+    {
+      "seed": 173,
+      "mode": "mean",
+      "initial": {
+        "nllPerCharacter": 3.345538961522177,
+        "lossPerToken": 2.90916431436711,
+        "predictedTokens": 46
+      },
+      "before": {
+        "nllPerCharacter": 0.49441381559070124,
+        "lossPerToken": 0.42992505703539236,
+        "predictedTokens": 46
+      },
+      "immediate": {
+        "nllPerCharacter": 1.6128725463212974,
+        "lossPerToken": 2.2246517880293757,
+        "predictedTokens": 29
+      },
+      "after": {
+        "nllPerCharacter": 0.3900488737442626,
+        "lossPerToken": 0.5379984465438106,
+        "predictedTokens": 29
+      },
+      "heldoutBefore": {
+        "nllPerCharacter": 1.5349927236339123,
+        "lossPerToken": 1.3644379765634775,
+        "predictedTokens": 18
+      },
+      "heldoutImmediate": {
+        "nllPerCharacter": 1.7170464178905425,
+        "lossPerToken": 2.2893952238540565,
+        "predictedTokens": 12
+      },
+      "heldoutAfter": {
+        "nllPerCharacter": 1.3671356185541463,
+        "lossPerToken": 1.8228474914055284,
+        "predictedTokens": 12
+      },
+      "noGrowthContinuation": {
+        "train": {
+          "nllPerCharacter": 0.33270455757869266,
+          "lossPerToken": 0.28930831093799364,
+          "predictedTokens": 46
+        },
+        "heldout": {
+          "nllPerCharacter": 1.7832473957684076,
+          "lossPerToken": 1.5851087962385846,
+          "predictedTokens": 18
+        }
+      },
+      "newProbabilityMassOnOldInput": 0.07601750210958053,
+      "pretrainMs": 1106.8761000000002,
+      "continuationMs": 681.6406999999999,
+      "fileBytes": 256155,
+      "oldWeightsAndIDsPreserved": true,
+      "oldLogitsPreservedOnSameInput": true,
+      "newEmbeddingUpdated": true,
+      "exactSaveReload": true,
+      "secondGrowthCount": 1
+    },
+    {
+      "seed": 173,
+      "mode": "mean-low-bias",
+      "initial": {
+        "nllPerCharacter": 3.345538961522177,
+        "lossPerToken": 2.90916431436711,
+        "predictedTokens": 46
+      },
+      "before": {
+        "nllPerCharacter": 0.49441381559070124,
+        "lossPerToken": 0.42992505703539236,
+        "predictedTokens": 46
+      },
+      "immediate": {
+        "nllPerCharacter": 2.7122032492805674,
+        "lossPerToken": 3.7409699990076795,
+        "predictedTokens": 29
+      },
+      "after": {
+        "nllPerCharacter": 0.3907431409469713,
+        "lossPerToken": 0.5389560564785811,
+        "predictedTokens": 29
+      },
+      "heldoutBefore": {
+        "nllPerCharacter": 1.5349927236339123,
+        "lossPerToken": 1.3644379765634775,
+        "predictedTokens": 18
+      },
+      "heldoutImmediate": {
+        "nllPerCharacter": 2.6841542240700518,
+        "lossPerToken": 3.578872298760069,
+        "predictedTokens": 12
+      },
+      "heldoutAfter": {
+        "nllPerCharacter": 1.4705584102941223,
+        "lossPerToken": 1.9607445470588296,
+        "predictedTokens": 12
+      },
+      "noGrowthContinuation": {
+        "train": {
+          "nllPerCharacter": 0.33270455757869266,
+          "lossPerToken": 0.28930831093799364,
+          "predictedTokens": 46
+        },
+        "heldout": {
+          "nllPerCharacter": 1.7832473957684076,
+          "lossPerToken": 1.5851087962385846,
+          "predictedTokens": 18
+        }
+      },
+      "newProbabilityMassOnOldInput": 0.0010167630303640769,
+      "pretrainMs": 1106.8761000000002,
+      "continuationMs": 697.9082999999996,
+      "fileBytes": 256155,
+      "oldWeightsAndIDsPreserved": true,
+      "oldLogitsPreservedOnSameInput": true,
+      "newEmbeddingUpdated": true,
+      "exactSaveReload": true,
+      "secondGrowthCount": 1
+    },
+    {
+      "seed": 719,
+      "mode": "random",
+      "initial": {
+        "nllPerCharacter": 3.404213000911285,
+        "lossPerToken": 2.9601852181837263,
+        "predictedTokens": 46
+      },
+      "before": {
+        "nllPerCharacter": 0.5130289634419758,
+        "lossPerToken": 0.44611214212345723,
+        "predictedTokens": 46
+      },
+      "immediate": {
+        "nllPerCharacter": 2.748611334116729,
+        "lossPerToken": 3.791188047057557,
+        "predictedTokens": 29
+      },
+      "after": {
+        "nllPerCharacter": 0.3520673970388925,
+        "lossPerToken": 0.4856102028122655,
+        "predictedTokens": 29
+      },
+      "heldoutBefore": {
+        "nllPerCharacter": 1.328081588195714,
+        "lossPerToken": 1.180516967285079,
+        "predictedTokens": 18
+      },
+      "heldoutImmediate": {
+        "nllPerCharacter": 2.1717071127228715,
+        "lossPerToken": 2.8956094836304955,
+        "predictedTokens": 12
+      },
+      "heldoutAfter": {
+        "nllPerCharacter": 1.2051227863252376,
+        "lossPerToken": 1.6068303817669836,
+        "predictedTokens": 12
+      },
+      "noGrowthContinuation": {
+        "train": {
+          "nllPerCharacter": 0.35145842863917626,
+          "lossPerToken": 0.30561602490363154,
+          "predictedTokens": 46
+        },
+        "heldout": {
+          "nllPerCharacter": 1.5793433664759133,
+          "lossPerToken": 1.403860770200812,
+          "predictedTokens": 18
+        }
+      },
+      "newProbabilityMassOnOldInput": 0.05328607798171281,
+      "pretrainMs": 1013.29,
+      "continuationMs": 710.2048000000004,
+      "fileBytes": 256155,
+      "oldWeightsAndIDsPreserved": true,
+      "oldLogitsPreservedOnSameInput": true,
+      "newEmbeddingUpdated": true,
+      "exactSaveReload": true,
+      "secondGrowthCount": 1
+    },
+    {
+      "seed": 719,
+      "mode": "mean",
+      "initial": {
+        "nllPerCharacter": 3.404213000911285,
+        "lossPerToken": 2.9601852181837263,
+        "predictedTokens": 46
+      },
+      "before": {
+        "nllPerCharacter": 0.5130289634419758,
+        "lossPerToken": 0.44611214212345723,
+        "predictedTokens": 46
+      },
+      "immediate": {
+        "nllPerCharacter": 1.5779859978219588,
+        "lossPerToken": 2.1765324107889086,
+        "predictedTokens": 29
+      },
+      "after": {
+        "nllPerCharacter": 0.3877368031797242,
+        "lossPerToken": 0.5348093836961713,
+        "predictedTokens": 29
+      },
+      "heldoutBefore": {
+        "nllPerCharacter": 1.328081588195714,
+        "lossPerToken": 1.180516967285079,
+        "predictedTokens": 18
+      },
+      "heldoutImmediate": {
+        "nllPerCharacter": 1.4079915075803302,
+        "lossPerToken": 1.8773220101071069,
+        "predictedTokens": 12
+      },
+      "heldoutAfter": {
+        "nllPerCharacter": 1.3499751084534979,
+        "lossPerToken": 1.7999668112713305,
+        "predictedTokens": 12
+      },
+      "noGrowthContinuation": {
+        "train": {
+          "nllPerCharacter": 0.35145842863917626,
+          "lossPerToken": 0.30561602490363154,
+          "predictedTokens": 46
+        },
+        "heldout": {
+          "nllPerCharacter": 1.5793433664759133,
+          "lossPerToken": 1.403860770200812,
+          "predictedTokens": 18
+        }
+      },
+      "newProbabilityMassOnOldInput": 0.07836416140411898,
+      "pretrainMs": 1013.29,
+      "continuationMs": 727.2826000000005,
+      "fileBytes": 256155,
+      "oldWeightsAndIDsPreserved": true,
+      "oldLogitsPreservedOnSameInput": true,
+      "newEmbeddingUpdated": true,
+      "exactSaveReload": true,
+      "secondGrowthCount": 1
+    },
+    {
+      "seed": 719,
+      "mode": "mean-low-bias",
+      "initial": {
+        "nllPerCharacter": 3.404213000911285,
+        "lossPerToken": 2.9601852181837263,
+        "predictedTokens": 46
+      },
+      "before": {
+        "nllPerCharacter": 0.5130289634419758,
+        "lossPerToken": 0.44611214212345723,
+        "predictedTokens": 46
+      },
+      "immediate": {
+        "nllPerCharacter": 2.6711688106255904,
+        "lossPerToken": 3.684370773276677,
+        "predictedTokens": 29
+      },
+      "after": {
+        "nllPerCharacter": 0.4071329443182692,
+        "lossPerToken": 0.5615626818183024,
+        "predictedTokens": 29
+      },
+      "heldoutBefore": {
+        "nllPerCharacter": 1.328081588195714,
+        "lossPerToken": 1.180516967285079,
+        "predictedTokens": 18
+      },
+      "heldoutImmediate": {
+        "nllPerCharacter": 2.3769751323783685,
+        "lossPerToken": 3.1693001765044913,
+        "predictedTokens": 12
+      },
+      "heldoutAfter": {
+        "nllPerCharacter": 1.605052705376775,
+        "lossPerToken": 2.1400702738357,
+        "predictedTokens": 12
+      },
+      "noGrowthContinuation": {
+        "train": {
+          "nllPerCharacter": 0.35145842863917626,
+          "lossPerToken": 0.30561602490363154,
+          "predictedTokens": 46
+        },
+        "heldout": {
+          "nllPerCharacter": 1.5793433664759133,
+          "lossPerToken": 1.403860770200812,
+          "predictedTokens": 18
+        }
+      },
+      "newProbabilityMassOnOldInput": 0.0010274162854719826,
+      "pretrainMs": 1013.29,
+      "continuationMs": 688.1168999999991,
+      "fileBytes": 256155,
+      "oldWeightsAndIDsPreserved": true,
+      "oldLogitsPreservedOnSameInput": true,
+      "newEmbeddingUpdated": true,
+      "exactSaveReload": true,
+      "secondGrowthCount": 1
+    },
+    {
+      "seed": 2026,
+      "mode": "random",
+      "initial": {
+        "nllPerCharacter": 3.341995500004915,
+        "lossPerToken": 2.9060830434825347,
+        "predictedTokens": 46
+      },
+      "before": {
+        "nllPerCharacter": 0.526783024949303,
+        "lossPerToken": 0.45807219560808954,
+        "predictedTokens": 46
+      },
+      "immediate": {
+        "nllPerCharacter": 2.396756783870734,
+        "lossPerToken": 3.3058714260285984,
+        "predictedTokens": 29
+      },
+      "after": {
+        "nllPerCharacter": 0.3495759698156398,
+        "lossPerToken": 0.48217375146984803,
+        "predictedTokens": 29
+      },
+      "heldoutBefore": {
+        "nllPerCharacter": 1.1897576928234397,
+        "lossPerToken": 1.0575623936208354,
+        "predictedTokens": 18
+      },
+      "heldoutImmediate": {
+        "nllPerCharacter": 2.0415506164991073,
+        "lossPerToken": 2.7220674886654765,
+        "predictedTokens": 12
+      },
+      "heldoutAfter": {
+        "nllPerCharacter": 1.61449052249362,
+        "lossPerToken": 2.1526540299914934,
+        "predictedTokens": 12
+      },
+      "noGrowthContinuation": {
+        "train": {
+          "nllPerCharacter": 0.3367522414669929,
+          "lossPerToken": 0.2928280360582547,
+          "predictedTokens": 46
+        },
+        "heldout": {
+          "nllPerCharacter": 1.3605613417302609,
+          "lossPerToken": 1.2093878593157874,
+          "predictedTokens": 18
+        }
+      },
+      "newProbabilityMassOnOldInput": 0.03385538883588227,
+      "pretrainMs": 1016.7131000000008,
+      "continuationMs": 710.9618999999984,
+      "fileBytes": 256155,
+      "oldWeightsAndIDsPreserved": true,
+      "oldLogitsPreservedOnSameInput": true,
+      "newEmbeddingUpdated": true,
+      "exactSaveReload": true,
+      "secondGrowthCount": 1
+    },
+    {
+      "seed": 2026,
+      "mode": "mean",
+      "initial": {
+        "nllPerCharacter": 3.341995500004915,
+        "lossPerToken": 2.9060830434825347,
+        "predictedTokens": 46
+      },
+      "before": {
+        "nllPerCharacter": 0.526783024949303,
+        "lossPerToken": 0.45807219560808954,
+        "predictedTokens": 46
+      },
+      "immediate": {
+        "nllPerCharacter": 1.325274993830178,
+        "lossPerToken": 1.8279655087312798,
+        "predictedTokens": 29
+      },
+      "after": {
+        "nllPerCharacter": 0.3646410151855636,
+        "lossPerToken": 0.5029531243938808,
+        "predictedTokens": 29
+      },
+      "heldoutBefore": {
+        "nllPerCharacter": 1.1897576928234397,
+        "lossPerToken": 1.0575623936208354,
+        "predictedTokens": 18
+      },
+      "heldoutImmediate": {
+        "nllPerCharacter": 1.4141741071535798,
+        "lossPerToken": 1.885565476204773,
+        "predictedTokens": 12
+      },
+      "heldoutAfter": {
+        "nllPerCharacter": 1.2232856783778934,
+        "lossPerToken": 1.6310475711705246,
+        "predictedTokens": 12
+      },
+      "noGrowthContinuation": {
+        "train": {
+          "nllPerCharacter": 0.3367522414669929,
+          "lossPerToken": 0.2928280360582547,
+          "predictedTokens": 46
+        },
+        "heldout": {
+          "nllPerCharacter": 1.3605613417302609,
+          "lossPerToken": 1.2093878593157874,
+          "predictedTokens": 18
+        }
+      },
+      "newProbabilityMassOnOldInput": 0.1935194402433634,
+      "pretrainMs": 1016.7131000000008,
+      "continuationMs": 710.3158000000003,
+      "fileBytes": 256155,
+      "oldWeightsAndIDsPreserved": true,
+      "oldLogitsPreservedOnSameInput": true,
+      "newEmbeddingUpdated": true,
+      "exactSaveReload": true,
+      "secondGrowthCount": 1
+    },
+    {
+      "seed": 2026,
+      "mode": "mean-low-bias",
+      "initial": {
+        "nllPerCharacter": 3.341995500004915,
+        "lossPerToken": 2.9060830434825347,
+        "predictedTokens": 46
+      },
+      "before": {
+        "nllPerCharacter": 0.526783024949303,
+        "lossPerToken": 0.45807219560808954,
+        "predictedTokens": 46
+      },
+      "immediate": {
+        "nllPerCharacter": 2.434426449138216,
+        "lossPerToken": 3.357829585018229,
+        "predictedTokens": 29
+      },
+      "after": {
+        "nllPerCharacter": 0.3724311407217371,
+        "lossPerToken": 0.5136981251334305,
+        "predictedTokens": 29
+      },
+      "heldoutBefore": {
+        "nllPerCharacter": 1.1897576928234397,
+        "lossPerToken": 1.0575623936208354,
+        "predictedTokens": 18
+      },
+      "heldoutImmediate": {
+        "nllPerCharacter": 2.3924726858340764,
+        "lossPerToken": 3.1899635811121017,
+        "predictedTokens": 12
+      },
+      "heldoutAfter": {
+        "nllPerCharacter": 1.0769455589602188,
+        "lossPerToken": 1.4359274119469585,
+        "predictedTokens": 12
+      },
+      "noGrowthContinuation": {
+        "train": {
+          "nllPerCharacter": 0.3367522414669929,
+          "lossPerToken": 0.2928280360582547,
+          "predictedTokens": 46
+        },
+        "heldout": {
+          "nllPerCharacter": 1.3605613417302609,
+          "lossPerToken": 1.2093878593157874,
+          "predictedTokens": 18
+        }
+      },
+      "newProbabilityMassOnOldInput": 0.003702130616817457,
+      "pretrainMs": 1016.7131000000008,
+      "continuationMs": 676.7382000000016,
+      "fileBytes": 256155,
+      "oldWeightsAndIDsPreserved": true,
+      "oldLogitsPreservedOnSameInput": true,
+      "newEmbeddingUpdated": true,
+      "exactSaveReload": true,
+      "secondGrowthCount": 1
+    }
+  ]
+}

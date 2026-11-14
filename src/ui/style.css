@@ -425,41 +425,16 @@ button.person-icon:hover { background: #f0e4cb; }
 .journal-arrow { color: #ad9a73; }
 .journal-note { margin: 24px 0 10px; line-height: 1.8; font-size: 14px; }
 .journal-finish { display: block; margin: 16px 0 0 auto; background: #a95845; color: #fff8e7; border: 0; padding: 12px 18px; border-radius: 3px 3px 12px 3px; min-height: 44px; }
-.part.memory-basket, .part.chip-tray { border: 8px solid #ac7c4d; border-radius: 16px; background: repeating-linear-gradient(0deg, #dac09a 0 35px, #cfb28b 36px 38px); }
+.part.memory-basket { border: 8px solid #ac7c4d; border-radius: 16px; background: repeating-linear-gradient(0deg, #dac09a 0 35px, #cfb28b 36px 38px); }
 .memory-stack { display: grid; gap: 16px; padding: 12px 10px; }
 .word-slip { text-align: left; font: inherit; line-height: 1.7; overflow-wrap: anywhere; background: #fff9e8; border: 0; border-top: 4px solid #b9c59a; padding: 14px 18px; box-shadow: 1px 4px 5px #68513633; transform: rotate(var(--tilt)); min-height: 48px; }
 .word-slip[aria-pressed="true"] { transform: none; background: #fffef8; outline: 2px solid #6d8755; }
 .empty-basket { display: grid; justify-items: center; gap: 14px; }.empty-basket svg { width: 70px; }
-.chip-socket { display: flex; align-items: center; justify-content: center; gap: 20px; margin: 16px 0; padding: 14px; background: #72583e; color: #fff2d3; border-radius: 12px; box-shadow: inset 0 3px 7px #35271866; }
-.chip-socket svg { width: 52px; display: block; }
-.chip-choices { display: flex; gap: 16px; }.chip-piece { flex: 1; display: grid; justify-items: center; gap: 9px; padding: 14px 8px; border: 3px solid #8c9f6a; border-radius: 12px; background: #e5eccb; font: inherit; font-size: 13px; box-shadow: 0 4px 0 #66744b; }
-.chip-piece svg { width: 48px; }.chip-piece-1 { background: #f3d9b7; border-color: #b58c61; }.chip-piece[aria-pressed="true"] { outline: 3px solid #fff9df; outline-offset: 3px; transform: translateY(-3px); }
-.chip-heat { display: flex; align-items: center; gap: 10px; margin-top: 24px; font-size: 12px; }.chip-heat input { min-width: 0; flex: 1; height: 32px; accent-color: #a95845; }
 .tutorial-target > span { bottom: calc(100% + 6px); }.tutorial-target svg { width: 28px; height: 28px; }
 @media (max-width: 640px) { .part.item-view { padding: 16px; }.journal-stamp { width: 58px; }.journal-drawing { gap: 6px; }.journal-note { font-size: 13px; }.tutorial-target { width: 44px; height: 44px; } }
 
-.part.workshop { position: absolute; inset: 0; z-index: 8; border: 0; border-radius: 0; box-shadow: none; background: radial-gradient(ellipse at 35% 30%, #eee6cc, #bcbf9e); padding: 26px 34px; display: grid; grid-template-columns: minmax(0, 1fr) 320px; grid-template-rows: 50px minmax(0, 1fr) 70px; gap: 16px; overflow: auto; }
-.workshop > h2 { margin: 0; color: #4f5e40; font-size: 24px; align-self: center; }
-.workshop .item-close { right: 24px; top: 20px; }
-.workshop-view { grid-column: 1; grid-row: 2; min-height: 0; min-width: 0; }
-.workshop-view canvas { display: block; width: 100%; height: 100%; cursor: pointer; }
-.workshop-slots { grid-column: 1; grid-row: 3; display: flex; gap: 9px; }
-.workshop-slots button { flex: 1; padding: 8px; border: 1px solid #9c9c76; background: #f6f0db; border-radius: 12px; font: inherit; font-size: 13px; color: #536042; }
-.workshop-slots [aria-pressed="true"] { background: #556e49; color: #fff8df; }
-.workshop-detail { grid-column: 2; grid-row: 2 / 4; align-self: center; padding: 24px; border-radius: 4px 20px 20px 4px; background: #fff9e7; box-shadow: 3px 5px 0 #bdab86, 0 16px 30px #574b3220; }
-.workshop-detail h3 { margin: 12px 0; font-size: 21px; }.workshop-detail p { font-size: 14px; line-height: 1.8; }.workshop-detail small { color: #7b8568; }
-.workshop-detail .chip-choices { flex-direction: column; margin-top: 26px; }.workshop-detail .chip-piece { min-height: 54px; box-shadow: 0 3px 0 #a5a481; }
-.chip-method { display: inline-block; padding: 3px 10px; border: 1px solid #b99f73; border-radius: 5px; color: #876c3f; }
-.workshop .chip-heat { flex-wrap: wrap; }.workshop .chip-heat input { flex-basis: 100%; }
 .koto-mark { display: none; }
 .word-slip { white-space: pre-line; }
-@media (max-width: 640px) {
-  .part.workshop { padding: 16px; grid-template-columns: minmax(0, 1fr); grid-template-rows: 44px minmax(160px, 28vh) auto auto; gap: 12px; }
-  .workshop > h2 { font-size: 20px; }.workshop .item-close { right: 16px; top: 14px; }
-  .workshop-slots { grid-column: 1; grid-row: 3; flex-wrap: wrap; }.workshop-slots button { flex: 1 1 28%; min-height: 44px; font-size: 11px; }
-  .workshop-detail { grid-column: 1; grid-row: 4; padding: 18px; }.workshop-detail h3 { font-size: 18px; margin: 6px 0; }.workshop-detail p { margin: 6px 0; }
-  .workshop-detail .chip-choices { flex-direction: row; margin-top: 15px; }.workshop .chip-heat { margin-top: 15px; }
-}
 /* コトの看板と、風に揺れる庭。 */
 .title-screen::after { background: linear-gradient(90deg, #fff5dc55, transparent 65%); }
 .title-art { animation: garden-breathe 18s ease-in-out infinite alternate; }
@@ -533,3 +508,74 @@ button.person-icon:hover { background: #f0e4cb; }
 @media (max-width: 640px) { .mind-guide-picture svg { max-height: 105px; } .mind-explanation::before { margin-bottom: 7px; } .mind-explanation h2 { margin-bottom: 10px; } }
 .mind-cargo { position: absolute; z-index: 11; right: 20px; bottom: 22px; max-width: min(380px, calc(100% - 40px)); padding: 12px 18px; border-radius: 12px; background: #fff1d9f5; color: #35483d; border: 1px solid #bca479; white-space: pre-line; overflow-wrap: anywhere; font-size: 15px; line-height: 1.7; pointer-events: none; }
 .mind-cargo[hidden] { display: none; }
+
+/* ---- 頭の中: 右下のアイテム欄、ヘッド切り替え ---- */
+.mind-items { position: absolute; z-index: 11; right: 20px; bottom: 90px; display: flex; gap: 8px; }
+.mind-item-binder { display: grid; justify-items: center; gap: 2px; padding: 8px 10px; border: 2px solid #bca479; border-radius: 14px; background: #fff1d9f5; color: #35483d; font-size: 11px; box-shadow: 0 4px 0 #a08a63, 0 8px 18px #2d3a3a33; }
+.mind-item-binder svg { width: 40px; height: 40px; }
+.mind-item-binder:hover { transform: translateY(-1px); }
+.mind-head-toggle { border-color: #c6b8e0 !important; }
+@media (max-width: 640px) { .mind-items { right: 10px; bottom: 76px; }.mind-item-binder svg { width: 32px; height: 32px; } }
+
+/* ---- 本の中身（原本・バインダー・勉強の結果） ---- */
+.inspect-view { position: relative; width: min(900px, 94vw); max-height: 90dvh; padding: 24px 28px; border: 0; border-left: 14px solid #6b5a41; border-radius: 6px 18px 18px 6px; background: #fff9e9; color: #574a36; box-shadow: 4px 6px 0 #d7c9a6, 0 16px 50px #2c221340; }
+.inspect-view::backdrop { background: #1d2a2e88; backdrop-filter: blur(3px); }
+.inspect-view h2 { margin: 0 48px 8px 0; font-size: 20px; color: #4f5e40; }
+.inspect-role { margin: 0 0 14px; font-size: 13px; line-height: 1.7; color: #6b5f4c; }
+.inspect-foot { margin: 14px 0 0; font-size: 12px; line-height: 1.7; color: #7b6d57; border-top: 1px dashed #cdbb98; padding-top: 10px; }
+.inspect-body { display: grid; gap: 14px; }
+.inspect-section { padding: 12px 14px; border-radius: 10px; background: #fffdf6; border: 1px solid #e3d5b6; }
+.inspect-section h3 { margin: 0 0 6px; font-size: 15px; }
+.inspect-section > p { margin: 0 0 8px; font-size: 12px; color: #6b5f4c; line-height: 1.6; }
+.inspect-tabs { display: flex; gap: 8px; }
+.inspect-tabs button { padding: 6px 14px; border: 1px solid #b4a27c; border-radius: 16px; background: #f6edd6; }
+.inspect-tabs [aria-pressed="true"] { background: #556e49; color: #fff8df; }
+.binder-spread { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.binder-spread > .inspect-section:first-child { border-right: 3px double #c9b48a; }
+.binder-pages { display: grid; gap: 8px; max-height: 50dvh; overflow: auto; }
+.binder-page { padding: 8px 10px; border-radius: 8px; background: #fff; border: 1px solid #e6dcc6; }
+.binder-page.current { border-color: #d8a441; box-shadow: 0 0 0 2px #f6dc9a; }
+.binder-page h4 { margin: 0 0 6px; font-size: 13px; }
+.binder-line { margin: 8px 0 4px; font-size: 13px; font-weight: bold; }
+.binder-note { margin: 2px 0 6px; font-size: 12px; color: #6b5f4c; line-height: 1.6; }
+.num-row { display: flex; flex-wrap: wrap; gap: 3px; }
+.num-cell { position: relative; width: 14px; height: 14px; padding: 0; border: 1px solid #b7a98a; border-radius: 3px; background: #eee; }
+.num-cell.pos { background: color-mix(in srgb, #f2c14e calc(var(--amount) * 100%), #faf4e4); }
+.num-cell.neg { background: color-mix(in srgb, #62aede calc(var(--amount) * 100%), #faf4e4); }
+.num-cell.show::after { content: attr(data-value); position: absolute; left: 50%; bottom: 120%; transform: translateX(-50%); padding: 2px 6px; border-radius: 4px; background: #2f3b33; color: #fff; font-size: 11px; white-space: nowrap; z-index: 2; }
+.book-rows { display: grid; gap: 6px; }
+.book-row { display: grid; grid-template-columns: 150px 1fr; gap: 10px; align-items: center; }
+.book-head { font-size: 12px; overflow-wrap: anywhere; }
+.book-pager { display: flex; gap: 10px; align-items: center; justify-content: flex-end; margin-top: 8px; font-size: 12px; }
+.book-pager button { padding: 6px 12px; border: 1px solid #b4a27c; border-radius: 14px; background: #f6edd6; }
+.study-list { margin: 0; padding-left: 20px; line-height: 1.9; font-size: 14px; }
+@media (max-width: 640px) { .inspect-view { padding: 16px; border-left-width: 8px; }.binder-spread { grid-template-columns: 1fr; }.binder-spread > .inspect-section:first-child { border-right: 0; }.book-row { grid-template-columns: 1fr; gap: 4px; } }
+
+/* ---- 勉強用の本（机） ---- */
+.part.study-book { border: 8px solid #a6684f; border-left: 16px solid #8a5240; border-radius: 8px 20px 20px 8px; background: #fff6e4; box-shadow: 3px 5px 0 #d7c9a6, 0 12px 32px #46352144; }
+.study-cover { display: flex; justify-content: center; margin-bottom: 10px; }
+.study-last { margin: 6px 0 0; font-size: 13px; color: #6b5f4c; }
+.study-buttons { display: flex; gap: 10px; justify-content: flex-end; margin-top: 14px; }
+.study-start { min-height: 44px; padding: 10px 22px; border: 0; border-radius: 3px 3px 12px 3px; background: #a95845; color: #fff8e7; font-weight: bold; }
+.study-start:disabled { opacity: .5; cursor: default; }
+.study-review { min-height: 44px; padding: 10px 16px; border: 1px solid #b4a27c; border-radius: 14px; background: #f6edd6; }
+
+/* ---- コトを作る（はじめから） ---- */
+.birth { width: min(520px, 94vw); max-height: 92dvh; padding: 26px 28px; border: 3px solid #ccb18b; border-radius: 24px; background: linear-gradient(135deg, #fffaf0, #f1e4cc); color: var(--text); box-shadow: 0 12px 60px #30261740, inset 0 0 0 4px #fff8e7; }
+.birth::backdrop { background: #30342c70; backdrop-filter: blur(4px); }
+.birth h2 { margin: 0 0 8px; font-size: 22px; color: #5c7047; }
+.birth > p { margin: 0 0 14px; font-size: 13px; line-height: 1.7; color: #6b5f4c; }
+.birth-summary { display: grid; grid-template-columns: 1fr auto; gap: 6px 18px; margin: 0 0 14px; padding: 12px 16px; border-radius: 12px; background: #fffdf6; border: 1px solid #e3d5b6; font-size: 14px; }
+.birth-summary dt { color: #6b5f4c; }
+.birth-summary dd { margin: 0; font-weight: bold; text-align: right; }
+.birth details { margin: 0 0 14px; font-size: 13px; }
+.birth summary { cursor: pointer; padding: 6px 0; color: #5c7047; font-weight: bold; }
+.birth-row { display: grid; grid-template-columns: 1fr; gap: 4px; margin: 10px 0; }
+.birth-row select { min-height: 40px; padding: 6px 10px; border: 1px solid #b4a27c; border-radius: 10px; background: #fff; font: inherit; }
+.birth-row small { color: #7b6d57; line-height: 1.6; }
+.birth-go { display: block; margin: 8px 0 0 auto; min-height: 48px; padding: 12px 26px; border: 0; border-radius: 14px; background: #55734c; color: #fff8e8; font-weight: bold; font-size: 16px; box-shadow: 0 4px 0 #385137; }
+.birth-cancel { position: absolute; top: 14px; right: 14px; width: 38px; height: 38px; }
+.save-warning { position: absolute; z-index: 7; left: 50%; top: calc(70px + env(safe-area-inset-top)); transform: translateX(-50%); padding: 8px 16px; border-radius: 14px; background: #ffe2d6; color: #7a3b2b; border: 1px solid #d9a08a; font-size: 13px; }
+
+.mind-layer-chip { padding: 8px 14px; border-radius: 18px; background: #d8ecd0; color: #2f4a3a; font-size: 13px; }
+

@@ -4,6 +4,7 @@ import { EMPTY_REPLY } from '../model/model.js';
 import { iconButton } from './icons.js';
 
 const LOG_LINES = 4; // 見せておくやり取りの数（会話ログは保存しない）
+const SAMPLES = ['おはよう', 'こんにちは', 'きょうはいいてんきだね', 'おはながきれいだね', 'いっしょにおさんぽしよう', 'おやすみ、またあした', 'ただいま', 'ありがとう', 'はじめまして、よろしくね', 'きょうはなにをみつけた？', 'あめのおとがするね', 'にじがでているよ', 'あたたかいパンをたべよう', 'ねこがねむっているね', 'どんなおはながすき？', 'いっしょにほんをよもう', 'ことりがうたっているよ', 'おつきさまがまるいね', 'さむいからあたたかくしてね', 'ひかげでひとやすみしよう', 'ゆきだるまをつくろう', 'はるがきたね', 'どんぐりをみつけたよ', 'きょうもたのしかったね'];
 
 export function createTalk(root, { model, mind, show, run, complete }) {
   const log = document.createElement('div');
@@ -15,17 +16,22 @@ export function createTalk(root, { model, mind, show, run, complete }) {
   form.className = 'talk-form';
   const input = document.createElement('input');
   input.type = 'text';
-  input.placeholder = 'ねえ、きょうはどんな気分？';
   input.setAttribute('aria-label', '空モデルに話しかける言葉');
   input.maxLength = 40;
   input.autocomplete = 'off';
   input.enterKeyHint = 'send';
   const button = iconButton('send', '話す', 'send-button');
+  const sample = iconButton('dice', 'ランダムな文章を入れる', 'talk-sample');
+  sample.addEventListener('click', () => {
+    const choices = SAMPLES.filter(text => text !== input.value);
+    input.value = choices[Math.floor(Math.random() * choices.length)];
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
   button.type = 'submit';
   const bubble = document.createElement('div');
   bubble.className = 'input-bubble';
   bubble.append(input);
-  form.append(bubble, button);
+  form.append(bubble, sample, button);
 
   root.replaceChildren(log, form);
 
@@ -35,9 +41,8 @@ export function createTalk(root, { model, mind, show, run, complete }) {
     line.setAttribute('aria-label', `${who === 'kara' ? '空モデル' : 'あなた'}: ${text}`);
     if (who === 'kara') {
       const face = document.createElement('span');
-      face.className = 'kara-face';
+      face.className = 'kara-face koto-mark';
       face.setAttribute('aria-hidden', 'true');
-      face.classList.add('koto-mark');
       line.append(face);
     }
     const message = document.createElement('span');
@@ -62,12 +67,13 @@ export function createTalk(root, { model, mind, show, run, complete }) {
       addLine('you', text);
 
       const result = model.infer(text);
+      if (result.refused) { mind.say('文字の本がいっぱいで、新しい文字を読めない。'); addLine('kara', EMPTY_REPLY); return; }
       await show(result.trace, () => mind.showIdle());
       addLine('kara', result.text);
 
-      // やり取りは短期記憶に入る（無言の「……」は入れない）
-      const turns = [{ speaker: 'you', text }];
-      if (result.text !== EMPTY_REPLY) turns.push({ speaker: 'koto', text: result.text });
+      // やり取りは会話の本と学習待ちに入る。あなたの言葉はお手本、コトの返事は「自分の生成文」として区別する
+      const turns = [{ speaker: 'you', source: 'user', text }];
+      if (result.text !== EMPTY_REPLY) turns.push({ speaker: 'koto', source: 'koto', text: result.text });
       await show(model.hearDialogue(turns).trace);
       complete('talk', result.text);
     }).then(focus);

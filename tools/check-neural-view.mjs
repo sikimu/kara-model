@@ -1,84 +1,87 @@
+// 表示側の説明・案内が、記録された計算と一致し、モデルの値を変えないことを確かめる。node tools/check-neural-view.mjs
 import assert from 'node:assert/strict';
-import { workFrame, frameOf, stepNote, unitCount, readout, tuneChange, explainNeural, rouletteTurn, rouletteSector, arrangeNote } from '../src/ui/neural-explanation.js';
-import proportional from '../src/model/chips/sampler-proportional.js';
-import { createNeural } from '../src/model/neural.js';
+import { createVisitGuide, explainNeural, roomNote, rouletteTurn, rouletteSector } from '../src/ui/neural-explanation.js';
 import { simpleGuide, guidePicture, glossary } from '../src/ui/neural-guide.js';
+import { createModel } from '../src/model/model.js';
+import { PRESETS } from '../src/model/config.js';
 
-const unfamiliar = createNeural().inspect(['<bos>', '<user>', '猫']);
-assert.equal(unfamiliar.stages[1].tokens.at(-1), '<unk>');
-assert.equal(unfamiliar.stages[1].sourceTokens.at(-1), '猫', '未習でも元の文字を表示用の記録に残す');
-const beginner = simpleGuide({ operation: { index: 1 }, stages: unfamiliar.stages }, { title: '②', body: '', detail: '' });
-assert.match(beginner.body, /まだ覚えていない/);
-assert.doesNotMatch(beginner.body, /高い台|自己注意|Q・K/);
-assert.match(guidePicture(beginner), /role="img"/);
-assert.ok(glossary['見る割合'].includes('次の文字として選ばれる確率とは別'));
+// 入室ごとに 1 回。層が変われば同じ部屋でも入室。別の部屋へ移って戻ればまた説明する
+const visit = createVisitGuide();
+visit.enter({ lane: 'sorting' });
+assert.equal(visit.take(), true);
+visit.enter({ lane: 'attention', index: 8 });
+assert.equal(visit.take(), false, '机や札の位置が変わっても同じ部屋なら説明しない');
+visit.enter({ lane: 'work', index: 1 }, 0);
+assert.equal(visit.take(), true);
+assert.equal(visit.take(), false, '同じ部屋・同じ層では説明しない');
+visit.enter({ lane: 'work', index: 1 }, 1);
+assert.equal(visit.take(), true, '2層めの入室は別の入室として説明する');
+visit.enter({ lane: 'candidates' });
+assert.equal(visit.take(), true);
+visit.enter({ lane: 'roulette' });
+assert.equal(visit.take(), false, '候補を置く場所と抽選は同じ部屋');
+visit.reset(); visit.enter({ lane: 'roulette' });
+assert.equal(visit.take(), true, '頭の中を開き直したらリセット');
+
+// 推論の記録から、部屋ごとの説明と案内を作る。数は記録そのもので、モデルの値は変わらない
+const model = createModel({ random: () => .3 });
+model.hearDialogue([{ speaker: 'you', source: 'user', text: 'やあ' }, { speaker: 'koto', source: 'koto', text: 'やあ' }]);
+await model.sleepAsync(() => Promise.resolve());
+const before = model.snapshot();
+const trace = model.infer('やあ').trace, attention = trace.find(e => e.type === 'attention'), stages = attention.stages, cfg = PRESETS[0];
+const saved = structuredClone(stages);
+const v = { mode: 'infer', stages, operation: { index: 0, k: .5, room: 0, layer: null }, head: 0 };
+const first = explainNeural(v, cfg);
+assert.match(first.title, /① 文字を 数に する/);
+assert.ok(first.body.includes(`${cfg.dim}個`) && first.body.includes(`${cfg.dim * 2}個にするのではありません`), '次元数は構成から出す');
+const guide0 = simpleGuide(v, first, cfg);
+assert.match(guide0.title, /「コト」の行を写す/, '文脈の最後はコトの番を示す目印');
+assert.equal(guide0.embedding, stages[0].a, '図には実際に写した数を使う');
+assert.match(guidePicture(guide0), new RegExp(`${cfg.dim}個の数`));
+assert.ok(!guidePicture({ ...guide0, tokens: ['<script>'] }).includes('<script>'), '図に入力をHTMLとして埋め込まない');
+for (let i = 1; i < stages.length - 1; i++) {
+  const s = stages[i], note = explainNeural({ ...v, operation: { index: i, k: .5, room: s.room, layer: s.layer } }, cfg);
+  assert.match(note.title, new RegExp(`${s.layer + 1}層め / ${cfg.layers}`), '層を明示する');
+  const g = simpleGuide({ ...v, operation: { index: i, k: .5 } }, note, cfg);
+  assert.ok(g.body.length > 30 && g.captions.length === 3);
+  assert.match(guidePicture(g), /role="img"/);
+}
+const matchNote = explainNeural({ ...v, operation: { index: 1, k: .5, room: 1, layer: 0 }, head: 2 }, cfg);
+assert.match(matchNote.detail, /ヘッド 3 を表示中/);
+assert.match(roomNote(stages[1], cfg, '')[1], new RegExp(`ヘッドが${cfg.heads}つ`));
+assert.match(explainNeural({ ...v, operation: { index: stages.length - 1, k: 1, room: 5, layer: null } }, cfg).title, /⑥/);
+assert.deepEqual(stages, saved, '説明はトレースの値を変えない');
+assert.deepEqual(model.snapshot(), before, '説明はモデルを変えない');
+assert.ok(glossary['見る割合'].includes('次の札として選ばれる確率とは別'));
 assert.ok(glossary['確率'].includes('必ず1回'));
-assert.ok(!guidePicture({ ...beginner, tokens: ['<script>'] }).includes('<script>'), '図に入力をHTMLとして埋め込まない');
+assert.ok(glossary['原本'].includes('棚') && glossary['作業用バインダー'].includes('原本には残りません'));
 
-// 学習: 重みを1個ずつ動かして見せる
-const tune = { label: '注意 Q', kind: 'tune', before: [-.2, .3, 0, .1, .5, .5], values: [.1, -.4, .2, .1, .5, .6] };
-const saved = structuredClone(tune);
-assert.equal(unitCount(tune), 6);
-assert.deepEqual(workFrame(tune, 0), { index: 0, phase: 0, count: 6 });
-assert.deepEqual(workFrame(tune, .75), { index: 4, phase: .5, count: 6 });
-assert.deepEqual(workFrame(tune, 1), { index: 5, phase: 1, count: 6 });
-assert.deepEqual(tuneChange(tune, 1), { index: 1, before: .3, after: -.4 });
-const learning = explainNeural({ mode: 'learn', epoch: 4, operation: { index: 0, k: .25 }, stages: [tune] });
-assert.match(learning.title, /れんしゅう 4/);
-assert.match(learning.detail, /1周分/);
-assert.match(learning.detail, /0\.3000 → -0\.4000/);
-assert.deepEqual(tune, saved, 'explanations must not change model values');
+// 学習の説明: 1 周分の更新をまとめていることを明示する
+const sleepTrace = (await (async () => { model.hearDialogue([{ speaker: 'guest1', source: 'guest', text: 'こんにちは' }]); return model.sleepAsync(() => Promise.resolve()); })()).trace;
+const gradient = sleepTrace.find(e => e.type === 'gradient'), tune = gradient.changes[0];
+const learning = explainNeural({ mode: 'learn', epoch: gradient.epoch, epochs: gradient.epochs, stages: gradient.changes, operation: { index: 0, k: .5, room: tune.room, layer: tune.layer } }, cfg);
+assert.match(learning.title, /れんしゅう 1 \/ 12/);
+assert.match(learning.detail, /抜粋/);
+assert.match(explainNeural({ mode: 'learn', epoch: 2, epochs: 12, quiz: gradient.quizBefore }, cfg).detail, /はずれ/);
+assert.match(explainNeural({ mode: 'learn', errorNote: { size: .5 }, courier: { token: null, k: .5 } }, cfg).title, /はずれの知らせ/);
+const tuneGuide = simpleGuide({ mode: 'learn', stages: gradient.changes, operation: { index: 0, k: .5 } }, learning, cfg);
+assert.match(tuneGuide.title, /棚へ戻す/);
+assert.match(tuneGuide.body, /文字の本|原本/);
 
-// 推論: 部屋ごとの記録が、実際の計算と一致する
-const net = createNeural();
-net.train([['<bos>', '<user>', 'や', 'あ', '<turn>', '<assistant>', 'や', 'あ', '<turn>', '<eos>']], 12);
-const context = ['<bos>', '<user>', 'や', 'あ', '<turn>', '<assistant>'];
-const { stages, weights } = net.inspect(context), c = net.forward(net.encode(context));
-const near = (a, b) => Math.abs(a - b) < 1e-9;
-assert.deepEqual(stages.map(s => s.kind), ['add', 'match', 'mix', 'add', 'gate', 'score']);
-assert.deepEqual(stages.map(unitCount), [12, 6, 6, 12, 24, Math.min(5, stages[5].candidates.length)]);
-for (const index of [0, 3]) stages[index].values.forEach((value, j) => assert.ok(near(value, stages[index].a[j] + stages[index].b[j]), 'たし算の部屋は a + b = 結果'));
-assert.ok(near(weights.reduce((sum, w) => sum + w, 0), 1), '見る割合の合計は 100%');
-stages[2].values.forEach((value, j) => assert.ok(near(value, stages[2].weights.reduce((sum, w, i) => sum + w * stages[2].parts[i][j], 0)), 'まぜる部屋は 割合 × 数 の合計'));
-assert.ok(stages[4].before.every((x, j) => x >= 0 || Math.abs(stages[4].values[j]) < Math.abs(x)), 'しぼり機はマイナスを小さくする');
-const predicted = net.predict(context).sort((a, b) => b.p - a.p).slice(0, 5);
-stages[5].candidates.forEach((candidate, i) => { assert.equal(candidate.token, predicted[i].token); assert.ok(near(candidate.p, predicted[i].p), '点から直した確率が予測と同じ'); });
-assert.deepEqual(stages[5].values, c.final);
-assert.match(readout(stages[0], workFrame(stages[0], 0)), /＋.*＝/);
-assert.match(explainNeural({ mode: 'infer', operation: { index: 1, k: 0 }, stages }).title, /見くらべる/);
-assert.match(explainNeural({ mode: 'infer', operation: { index: 4, k: 0 }, stages }).body, /しぼり機/);
-
-// くわしい説明: 置き終えた手順で止まり、その 1 手の数を説明する
-assert.deepEqual(frameOf(stages[0], { k: 3 / 12, hold: 2 }), { index: 2, phase: 1, count: 12 });
-const held = explainNeural({ mode: 'infer', operation: { index: 0, k: 3 / 12, hold: 2 }, stages });
-assert.match(held.body, /いま置いたのは 3本め/);
-assert.ok(held.body.includes(Math.abs(stages[0].values[2]).toFixed(2)), '説明の数は計算結果と同じ');
-for (let index = 0; index < 6; index++) assert.ok(stepNote(stages[index], { index: 0, phase: 1 }, index).length > 30);
-assert.match(stepNote(stages[4], { index: stages[4].before.findIndex(x => x < 0), phase: 1 }, 4), /マイナスなので/);
-assert.deepEqual(explainNeural({ holdNote: { title: 'a', body: 'b', detail: 'c' } }), { title: 'a', body: 'b', detail: 'c' });
-// 学習: 当てっこと、はずれの知らせ
-const history = createNeural().train([['<bos>', '<user>', 'や', 'あ', '<turn>', '<assistant>', 'や', 'あ', '<turn>', '<eos>']], 3);
-assert.ok(history.every(h => h.quizBefore.top.some(c => c.token === h.quizBefore.answer) && h.changes.every(c => c.moved > 0)));
-assert.ok(history.at(-1).quiz.p > history[0].quizBefore.p, '練習すると正解の確率が上がる');
-assert.ok(near(history[1].quizBefore.p, history[0].quiz.p), '次の周の当てっこは、前の周の結果から始まる');
-assert.match(explainNeural({ mode: 'learn', epoch: 2, quiz: history[1].quizBefore }).detail, /はずれ/);
-assert.match(explainNeural({ mode: 'learn', errorNote: { size: .5 }, courier: { token: null, k: .5 } }).title, /はずれの知らせ/);
-assert.match(explainNeural({ mode: 'learn', quiz: history[0].quizBefore, errorNote: { size: .5 }, courier: { token: null, k: .5 } }).title, /はずれの知らせ/, '当てっこの後の運搬では逆向きの説明を優先する');
-
-const attention = explainNeural({ courier: { token: 'あ', k: .5, from: { lane: 'attention' } }, attentionFocus: 0, attention: { weights: [.375] } });
-assert.match(attention.detail, /37\.50%/);
-const many = explainNeural({ courier: { tokens: ['や', 'あ'], k: .1, froms: [{ lane: 'heard' }, { lane: 'heard' }], tos: [] } });
+// 勉強・登録・運搬の説明
+assert.match(explainNeural({ mode: 'study', studyRound: { candidates: [{ a: 'や', b: 'あ', count: 3 }], k: 1 } }, cfg).detail, /「やあ」3回/);
+assert.match(explainNeural({ mode: 'study', merging: { text: 'やあ', parts: ['や', 'あ'], count: 3, k: .5 } }, cfg).body, /3 回/);
+assert.match(explainNeural({ registering: { tokens: ['猫'], k: .5 } }, cfg).detail, /登録は学習ではありません/);
+const many = explainNeural({ courier: { tokens: ['や', 'あ'], k: .1, froms: [{ lane: 'heard' }, { lane: 'heard' }], tos: [{ lane: 'sorting' }] } }, cfg);
 assert.match(many.title, /2まい/);
+assert.match(explainNeural({ carrying: 'binder', binderPages: 6, courier: { token: null, k: .5, from: { lane: 'work', index: 0 }, to: { lane: 'work', index: 1 } } }, cfg).detail, /6ページ/);
+
+// ルーレット: 確率区間・乱数・結果が一致する
 const rows = [{ token: 'あ', p: .1 }, { token: 'い', p: .7 }, { token: '■', p: .2 }];
+const pick = r => { let sum = 0; for (const row of rows) { sum += row.p; if (r < sum) return row.token; } return rows.at(-1).token; };
 for (const r of [0, .099999, .1, .79999, .8, .999999]) {
-  assert.equal(rouletteSector(rows, r).token, proportional.pick(rows, () => r));
+  assert.equal(rouletteSector(rows, r).token, pick(r));
   assert.ok(Math.abs(rouletteTurn(1, r) - 3 - r) < 1e-12);
 }
 assert.equal(rouletteTurn(0, .4), 0);
-console.log('OK 部屋ごとの記録が実計算と一致・手順の区切り・説明の実数値・学習集約の明示・モデル値の不変性');
-
-assert.match(arrangeNote('<user>', 1, '<bos>').body, /あなた/);
-assert.match(arrangeNote('あ', 3, 'や').body, /「や」の次/);
-assert.match(stepNote(tune, { index: 1, phase: 1 }, 0), /減らしました/);
-assert.match(stepNote(tune, { index: 0, phase: 1 }, 0), /増やしました/);
-assert.match(stepNote(tune, { index: 3, phase: 1 }, 0), /変わっていません/);
+console.log('OK 部屋ごとの説明が構成（次元・層・ヘッド）と記録に一致・入室の区切り・学習集約の明示・モデル値の不変性');

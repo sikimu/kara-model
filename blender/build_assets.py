@@ -1,4 +1,4 @@
-# assets/character.glb、assets/room.glb、assets/npc.glb を作る。
+# assets/character.glb、assets/room.glb、assets/npc.glb、assets/sleep-mobile.glb、assets/mind-space.glb を作る。
 # 使い方: blender -b -P blender/build_assets.py
 #
 # 位置は three.js の座標（x: 右、y: 上、z: 手前）で書き、T() で Blender の座標に直す。
@@ -464,12 +464,18 @@ def build_room():
     sphere('picture_sun', 0.13, mat('picture_sun', (0.95, 0.5, 0.35)), T(-W / 2 + 0.06, 2.4, -1.25),
            scale=(0.15, 1, 1))
 
-    # 観察ノートの机。部屋から直接開く小物。
+    # 観察ノートと勉強用の本の机。ノートと本は別々に押せる小物（机全体では開かない）。
     desk = empty('journal_desk', T(-3.15, 0, 1.45))
-    box('desk_top', S(1.15, .1, .8), wood, T(0, .65, 0), parent=desk, bevel=.035)
-    for i, (x, z) in enumerate(((-.46, -.29), (.46, -.29), (-.46, .29), (.46, .29))):
+    box('desk_top', S(1.3, .1, .8), wood, T(0, .65, 0), parent=desk, bevel=.035)
+    for i, (x, z) in enumerate(((-.52, -.29), (.52, -.29), (-.52, .29), (.52, .29))):
         box(f'desk_leg{i}', S(.09, .6, .09), wood_dark, T(x, .3, z), parent=desk)
-    journal = empty('journal', T(0, .73, .04), parent=desk)
+    # 勉強用の本（ことばのまとまり探し）。机の右端に立てて置く
+    study = empty('study_book', T(.47, .70, .0), parent=desk)
+    box('study_book_cover', S(.09, .42, .32), books[0], T(0, .21, 0), parent=study, bevel=.012, rot=(0, 0, math.radians(-8)))
+    box('study_book_pages', S(.06, .38, .29), white, T(.0, .21, .0), parent=study, bevel=.004, rot=(0, 0, math.radians(-8)))
+    box('study_book_band', S(.1, .07, .33), books[2], T(0, .12, 0), parent=study, bevel=.006, rot=(0, 0, math.radians(-8)))
+    sphere('study_book_mark', .035, mat('study_mark', (.98, .86, .45), rough=.5), T(.0, .36, .12), parent=study, seg=12)
+    journal = empty('journal', T(-.12, .73, .04), parent=desk)
     box('journal_cover', S(.77, .045, .54), books[2], T(0, 0, 0), parent=journal, bevel=.018)
     for i, x in enumerate((-.18, .18)):
         box(f'journal_page{i}', S(.35, .035, .48), white, T(x, .035, 0), parent=journal, bevel=.008)
@@ -481,14 +487,6 @@ def build_room():
     for side in (-1, 1):
         for j in range(3):
             box(f'journal_rule{side}_{j}', S(.22, .003, .006), books[2], T(side * .18, .055, -.13 + j * .10), parent=journal, bevel=0)
-    chipbox = empty('chip_box', T(.8, 1.48, -2.55))
-    box('chip_box_base', S(.68, .25, .48), wood, T(0, .125, 0), parent=chipbox, bevel=.025)
-    box('chip_box_lid', S(.72, .065, .52), wood_dark, T(0, .28, 0), parent=chipbox, bevel=.018)
-    box('chip_box_clasp', S(.11, .12, .025), books[1], T(0, .23, .255), parent=chipbox, bevel=.01)
-    box('chip_box_emblem', S(.21, .025, .21), books[2], T(0, .325, 0), parent=chipbox, bevel=.02)
-    for side in (-1, 1):
-        box(f'chip_box_strap{side}', S(.045, .26, .49), wood_dark, T(side * .25, .15, 0), parent=chipbox, bevel=.012)
-
     # 壁の上端に光を拾う見切り。家具や通り道の位置は維持。
     box('wall_cap_back', S(W - .1, .10, .30), trim, T(0, H, -D / 2 - .1), bevel=.035)
     for side in (-1, 1):
@@ -647,52 +645,6 @@ def build_npc():
     export('npc.glb')
 
 
-def build_workshop():
-    reset()
-    oak = mat('work_oak', (.72, .49, .30), rough=.48)
-    edge = mat('work_edge', (.40, .26, .17))
-    brass = mat('work_brass', (.93, .73, .37), metal=.45, rough=.35)
-    felt = mat('work_felt', (.25, .39, .32), rough=.94)
-    cream = mat('work_cream', (.96, .89, .69))
-    box('worktable', S(7, .28, 3.7), oak, T(0, -.2, 0), bevel=.14)
-    box('workmat', S(6.5, .035, 3.2), felt, T(0, -.04, 0), bevel=.08)
-    for side in (-1, 1):
-        box(f'work_rim{side}', S(.07, .09, 3.45), edge, T(side * 3.37, -.02, 0), bevel=.025)
-    colors = [(.55, .74, .77), (.66, .60, .78), (.57, .73, .48), (.90, .68, .38), (.80, .49, .42)]
-    for i, name in enumerate(('tokenizer', 'context', 'predictor', 'sampler', 'learner')):
-        x = (i - 2) * 1.2
-        box(f'socket_{name}', S(1.05, .12, 1.5), edge, T(x, .015, 0), bevel=.07)
-        box(f'socket_inner_{name}', S(.9, .025, 1.22), felt, T(x, .085, 0), bevel=.04)
-        for side in (-1, 1):
-            sphere(f'socket_screw_{name}{side}', .045, brass, T(x + side * .41, .10, .62), scale=S(1, .3, 1))
-        chip = empty(f'chip_{name}', T(x, .18, 0))
-        color = mat(f'chip_color_{name}', colors[i], rough=.45)
-        box(f'{name}_body', S(.82, .15, 1.05), color, T(0, 0, 0), parent=chip, bevel=.07)
-        box(f'{name}_badge', S(.61, .025, .68), cream, T(0, .09, -.02), parent=chip, bevel=.04)
-        for j in range(4):
-            for side in (-1, 1):
-                box(f'{name}_pin{j}_{side}', S(.13, .045, .07), brass, T(side * .45, -.015, -.32 + j * .21), parent=chip, bevel=.012)
-        # 切り口、道筋、棚、サイコロ、芽を金属の象眼で表す。
-        if i == 0:
-            for j in range(3):
-                box(f'cut_mark{j}', S(.07, .035, .4), brass, T((j - 1) * .17, .12, 0), parent=chip, bevel=.015)
-        elif i == 1:
-            for j in range(3):
-                sphere(f'path_mark{j}', .075, brass, T((j - 1) * .17, .13, (j - 1) * .15), scale=S(1, .3, 1), parent=chip)
-        elif i == 2:
-            for j in range(3):
-                box(f'shelf_mark{j}', S(.44, .035, .06), brass, T(0, .12, (j - 1) * .16), parent=chip, bevel=.012)
-        elif i == 3:
-            for x2, z2 in ((-.13, -.13), (.13, -.13), (0, 0), (-.13, .13), (.13, .13)):
-                sphere(f'die_mark{x2}_{z2}', .045, brass, T(x2, .13, z2), scale=S(1, .35, 1), parent=chip)
-        else:
-            box('sprout_stem', S(.035, .025, .4), brass, T(0, .12, .05), parent=chip)
-            for side in (-1, 1):
-                sphere(f'sprout_leaf{side}', .13, brass, T(side * .11, .13, -.07), scale=S(1, .2, .6), parent=chip)
-    polish_surfaces()
-    export('workshop.glb')
-
-
 def build_sleep_mobile():
     reset()
     gold = mat('dream_gold', (.98, .82, .43), rough=.35, glow=.15)
@@ -720,32 +672,17 @@ def build_sleep_mobile():
     export('sleep-mobile.glb')
 
 
-def build_courier_bag():
-    reset()
-    leather = mat('courier_leather', (.60, .34, .17), rough=.52)
-    edge = mat('courier_edge', (.83, .63, .33))
-    brass = mat('courier_buckle', (.94, .78, .35), metal=.65, rough=.3)
-    box('satchel', S(.49, .34, .19), leather, T(0, .48, .43), bevel=.065)
-    box('satchel_flap', S(.47, .15, .045), edge, T(0, .58, .54), bevel=.035)
-    box('satchel_clasp', S(.065, .09, .025), brass, T(0, .51, .57), bevel=.012)
-    box('satchel_strap', S(.065, .39, .035), leather, T(0, .64, .40), rot=RZ(-32), bevel=.015)
-    for i in range(9):
-        sphere(f'satchel_stitch{i}', .009, edge, T(-.19 + i * .0475, .35, .532), seg=8)
-    polish_surfaces()
-    export('courier-bag.glb')
-
-
 # 頭の中の部屋の並び。src/ui/neural-view.js の ROOMS と同じ値にする。
 MIND_ROOMS = [
     # 名前, 中心 x, 中心 z, 壁の腰板の色, 机の奥行き
     ('spare_mail', -11, 9, (.93, .74, .50), 1.6),
     ('context', 0, 9, (.62, .78, .72), 2.0),
-    ('work0', -11, 0, (.95, .78, .45), 1.8),
-    ('work1', 0, 0, (.55, .74, .86), 1.8),
-    ('work2', 11, 0, (.72, .82, .52), 1.8),
-    ('work3', 11, -9, (.93, .66, .55), 1.8),
-    ('work4', 0, -9, (.76, .68, .88), 1.8),
-    ('work5', -11, -9, (.50, .78, .74), 1.8),
+    ('work0', -11, 0, (.95, .78, .45), 2.8),
+    ('work1', 0, 0, (.55, .74, .86), 2.8),
+    ('work2', 11, 0, (.72, .82, .52), 2.8),
+    ('work3', 11, -9, (.93, .66, .55), 2.8),
+    ('work4', 0, -9, (.76, .68, .88), 2.8),
+    ('work5', -11, -9, (.50, .78, .74), 2.8),
     ('spare_candidates', -22, -9, (.90, .72, .78), 1.6),
     ('roulette', -22, 0, (.70, .64, .86), 3.4),
     ('output', -22, 9, (.96, .80, .55), 2.6),
@@ -779,7 +716,6 @@ def build_mind_space():
     pot = mat('mind_pot', (.78, .47, .36))
     path = mat('mind_path', (.86, .80, .66))
     stone = mat('mind_stone', (.93, .89, .78))
-    lens_glass = mat('mind_lens_glass', (.80, .93, .98), rough=.1, glow=.25)
     red = mat('mind_red', (.80, .40, .32))
     jars = [mat('mind_jar' + str(j), c) for j, c in enumerate(((.90, .70, .45), (.55, .75, .80), (.80, .60, .70), (.65, .78, .55)))]
 
@@ -891,24 +827,56 @@ def build_mind_space():
     cone('mind_roulette_rim', 1.52, 1.52, .12, edge, T(cx + .3, .79, cz + .5), segments=64)
     cone('mind_roulette_hub', .14, .12, .17, paper, T(cx + .3, .95, cz + .5))
 
-    # three.js から動かす道具。部屋の外に作り、名前で取り出す
-    lens = empty('mind_lens', T(0, -5, 0))
-    cone('mind_lens_ring', .30, .30, .06, brass, T(0, 0, 0), parent=lens, caps=False)
-    cone('mind_lens_ring_in', .25, .25, .06, brass, T(0, 0, 0), parent=lens, caps=False)
-    cone('mind_lens_glass', .26, .26, .02, lens_glass, T(0, 0, 0), parent=lens)
-    box('mind_lens_handle', S(.08, .06, .42), oak_dark, T(0, 0, -.50), parent=lens, bevel=.02)
-    gate = empty('mind_gate', T(0, -5, 3))
-    for j, xx in enumerate((-.19, .19)):
-        box(f'mind_gate_post{j}', S(.07, .62, .30), red, T(xx, .31, 0), parent=gate, bevel=.02)
-    box('mind_gate_top', S(.50, .12, .34), red, T(0, .66, 0), parent=gate, bevel=.03)
-    box('mind_gate_roller', S(.32, .08, .26), brass, T(0, .56, 0), parent=gate, bevel=.03)
-    box('mind_gate_base', S(.56, .04, .40), oak_dark, T(0, .02, 0), parent=gate, bevel=.01)
-    stick = empty('mind_stick', T(0, -5, 9))
-    box('mind_stick_rod', S(.035, .035, 1), oak_dark, T(0, 0, .5), parent=stick, bevel=.0)
-    sphere('mind_stick_tip', .05, brass, T(0, 0, 1), parent=stick, seg=12)
-    scoop = empty('mind_scoop', T(0, -5, 6))
-    cone('mind_scoop_cup', .13, .19, .16, brass, T(0, 0, 0), parent=scoop)
-    box('mind_scoop_handle', S(.05, .04, .36), oak_dark, T(0, .06, -.34), parent=scoop, bevel=.01)
+    # 原本の本棚。①〜⑥の部屋の左の壁ぎわに置き、three.js 側で押すと原本を開く
+    cover_colors = [(.62, .36, .30), (.33, .50, .62), (.44, .58, .40), (.74, .58, .30), (.55, .44, .62), (.36, .55, .55)]
+    covers = [mat(f'mind_cover{j}', c, rough=.6) for j, c in enumerate(cover_colors)]
+    for i in range(6):
+        name = f'work{i}'
+        cx, cz = r[name]
+        # 壁に寄せて薄くし、入口から机の奥へ歩く通り道（x = cx - 3.55）をふさがない
+        sx, sz = cx - 4.24, cz - .9
+        # 外枠を一枚の箱にすると本が内部へ埋まる。開口を残した側板と天板にする。
+        for side in (-1, 1):
+            box(f'{name}_case_side{side}', S(.34, 1.75, .07), oak_dark, T(sx, .875, sz + side * .815), bevel=.018)
+        box(f'{name}_case_top', S(.36, .07, 1.7), oak_dark, T(sx, 1.72, sz), bevel=.018)
+        box(f'{name}_case_back', S(.05, 1.65, 1.6), plank_b, T(sx - .12, .88, sz), bevel=.01)
+        for k, yy in enumerate((.12, .68, 1.24)):
+            box(f'{name}_case_shelf{k}', S(.30, .05, 1.62), oak, T(sx, yy, sz), bevel=.01)
+            for j in range(5):
+                rr = rnd(j + k * 3, i + 11)
+                h = .36 + rr * .1
+                box(f'{name}_case_book{k}_{j}', S(.24, h, .22 + rr * .06), covers[(i + j + k) % 6] if (j + k) % 4 else paper, T(sx + .01, yy + .03 + h / 2, sz - .62 + j * .31), bevel=.012)
+    # three.js から動かす小物。部屋の外に作り、名前で取り出す
+    # 原本の本（閉じた本）。表紙の色は部屋で変える
+    book = empty('mind_book', T(0, -5, 12))
+    box('mind_book_cover', S(.56, .07, .72), covers[0], T(0, .035, 0), parent=book, bevel=.012)
+    box('mind_book_pages', S(.50, .052, .66), trim, T(.02, .035, 0), parent=book, bevel=.004)
+    box('mind_book_spine', S(.06, .085, .74), oak_dark, T(-.27, .04, 0), parent=book, bevel=.01)
+    box('mind_book_label', S(.24, .004, .16), paper, T(.04, .073, -.14), parent=book, bevel=.002)
+    # 開いた本（机に置いて写す・書き直すときの姿）
+    opened = empty('mind_book_open', T(0, -5, 14))
+    for side in (-1, 1):
+        box(f'mind_book_open_cover{side}', S(.56, .03, .74), covers[0], T(side * .285, .03, 0), parent=opened, bevel=.008, rot=(0, 0, side * math.radians(6)))
+        box(f'mind_book_open_page{side}', S(.50, .034, .66), trim, T(side * .27, .045, 0), parent=opened, bevel=.004, rot=(0, 0, side * math.radians(6)))
+        for j in range(4):
+            box(f'mind_book_open_rule{side}_{j}', S(.34, .004, .012), edge, T(side * .27, .066, -.2 + j * .13), parent=opened, bevel=0, rot=(0, 0, side * math.radians(6)))
+    # 作業用バインダー（今回の計算に必要な情報）。コトが持ち歩く
+    binder_cloth = mat('mind_binder', (.28, .42, .50), rough=.55)
+    binder_ring = mat('mind_binder_ring', (.85, .85, .80), rough=.3, metal=.7)
+    binder = empty('mind_binder', T(0, -5, 16))
+    box('mind_binder_back', S(.62, .09, .80), binder_cloth, T(0, .045, 0), parent=binder, bevel=.015)
+    box('mind_binder_sheets', S(.52, .07, .72), trim, T(.04, .05, 0), parent=binder, bevel=.004)
+    box('mind_binder_spine', S(.08, .11, .82), binder_cloth, T(-.29, .05, 0), parent=binder, bevel=.012)
+    for j, zz in enumerate((-.24, .0, .24)):
+        cone(f'mind_binder_ring{j}', .045, .045, .08, binder_ring, T(-.22, .09, zz), parent=binder, rot=(0, math.radians(90), 0), caps=False, segments=16)
+    box('mind_binder_tab', S(.12, .006, .22), red, T(.3, .09, -.2), parent=binder, bevel=.003)
+    # 開いたバインダー（机の上で現在の情報を書き直す姿）
+    binder_open = empty('mind_binder_open', T(0, -5, 18))
+    for side in (-1, 1):
+        box(f'mind_binder_open_cover{side}', S(.62, .03, .82), binder_cloth, T(side * .32, .03, 0), parent=binder_open, bevel=.008)
+        box(f'mind_binder_open_sheet{side}', S(.54, .03, .74), trim, T(side * .31, .048, 0), parent=binder_open, bevel=.004)
+    for j, zz in enumerate((-.24, .0, .24)):
+        cone(f'mind_binder_open_ring{j}', .04, .04, .07, binder_ring, T(0, .08, zz), parent=binder_open, rot=(math.radians(90), 0, 0), caps=False, segments=16)
 
     # 部屋はすべて 1 つの大きな建物の中にある。部屋どうしは廊下でつなぐ
     hall = mat('mind_hall', (.90, .86, .76))
@@ -990,8 +958,6 @@ def build_mind_space():
 
 import sys
 if '--mind-only' not in sys.argv:
-    build_courier_bag()
-    build_workshop()
     build_sleep_mobile()
     build_character()
     build_room()

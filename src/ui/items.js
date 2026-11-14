@@ -1,10 +1,11 @@
-// 部屋の小物から開く、観察ノート・ことばのメモ・チップの木箱。
+// 部屋の小物から開く、観察ノート・ことばのかご・勉強用の本。
 import { ICONS, iconButton } from './icons.js';
+import { speakerLabel } from '../model/corpus.js';
 
 const pages = [
   { title: 'はじめての声', icons: ['talk', 'empty'], note: 'まだ、ことばを知らないみたい。' },
   { title: 'まちで集めたもの', icons: ['walk', 'talk', 'basket'], note: '聞いたことばは、かごにひとまず。' },
-  { title: 'ねむった夜', icons: ['basket', 'sleep', 'link'], note: '眠るあいだに、ことばがつながった。' },
+  { title: 'ねむった夜', icons: ['basket', 'sleep', 'link'], note: '眠るあいだに、原本の本を書き直した。' },
   { title: '朝のおしゃべり', icons: ['link', 'talk'], note: '覚えたことばで、おしゃべり。' },
 ];
 const reflectionPage = { 'first-talk': 0, heard: 1, slept: 2, replied: 3, quiet: 3 };
@@ -65,22 +66,25 @@ export function createJournal(root, { model, close, acknowledge }) {
   root.addEventListener('open', () => render(reflectionPage[model.tutorial.reflection] ?? Math.max(0, Math.min(3, model.tutorial.step - 1))));
 }
 
+// ことばのかご: 眠るまでの学習待ち。会話の本（長く残す）とは別
 export function createMemory(root, { model, close }) {
   root.classList.add('item-view', 'memory-basket');
   header(root, 'ことばのかご', close);
+  const note = document.createElement('p'); note.className = 'part-hint';
   const stack = document.createElement('div');
   stack.className = 'memory-stack';
-  root.append(stack);
+  root.append(note, stack);
   root.addEventListener('open', () => {
     stack.replaceChildren();
-    if (!model.shortMemory.length) {
+    note.textContent = `眠るときに練習に使う会話。会話の本には ${model.book.conversations.length} / ${model.limits.conversations} 件を長く残しています。`;
+    if (!model.pending.length) {
       const empty = document.createElement('p');
       empty.className = 'empty-basket';
       empty.innerHTML = `${ICONS.basket}<span>いまは、からっぽ。</span>`;
       stack.append(empty);
     }
-    model.shortMemory.forEach((entry, i) => {
-      const text = typeof entry === 'string' ? entry : entry.turns.map(t => `${({ you: 'あなた', koto: 'コト', unknown: 'ことば' })[t.speaker] ?? `話し手 ${Number(t.speaker) + 1}`}　${t.text}`).join('\n');
+    model.pending.forEach((entry, i) => {
+      const text = entry.turns.map(t => `${speakerLabel(t.speaker)}${t.source === 'koto' ? '（自分の返事）' : ''}　${t.text}`).join('\n');
       const card = document.createElement('button');
       card.type = 'button';
       card.className = 'word-slip';
@@ -97,4 +101,38 @@ export function createMemory(root, { model, close }) {
   });
 }
 
-export { createWorkshop as createChips } from './workshop.js';
+// 勉強用の本: ことばのまとまり探し。会話できる状態からだけ始める
+export function createStudy(root, { model, mind, show, run, close, inspector, persist }) {
+  root.classList.add('item-view', 'study-book');
+  header(root, 'ことばの まとまり探し', close);
+  const cover = document.createElement('div'); cover.className = 'study-cover';
+  cover.innerHTML = `<span class="journal-stamp">${ICONS.book}</span>`;
+  const hint = document.createElement('p'); hint.className = 'part-hint';
+  const last = document.createElement('p'); last.className = 'study-last';
+  const buttons = document.createElement('div'); buttons.className = 'study-buttons';
+  const start = document.createElement('button'); start.type = 'button'; start.className = 'study-start'; start.textContent = '勉強する';
+  const review = document.createElement('button'); review.type = 'button'; review.className = 'study-review'; review.textContent = '前回の結果を見る';
+  buttons.append(start, review);
+  root.append(cover, hint, last, buttons);
+  root.addEventListener('open', () => {
+    const c = model.stats(), book = model.book.conversations.length;
+    hint.textContent = `本に残っている ${book} / ${model.limits.conversations} 件の会話を読み返し、よく出る札の並びをひとまとまりにします。まとまり ${c.merges} / ${model.limits.merges}。文字は別枠（${c.chars} 種類）。`;
+    start.disabled = book === 0;
+    const s = model.progress.lastStudy;
+    last.textContent = s ? (s.added?.length ? `前回: 「${s.added.map(m => m.text).join('」「')}」を登録` : s.code === 'full' ? '前回: 登録枠がいっぱいで追加なし' : '前回: 新しいまとまりはなし') : '';
+    review.hidden = !s;
+  });
+  review.addEventListener('click', () => { const s = model.progress.lastStudy; if (s) inspector.openStudy({ ...s, sources: s.sources ?? [], added: s.added ?? [] }); });
+  start.addEventListener('click', () => {
+    close();
+    run(async () => {
+      const { result, trace, next } = model.study();
+      await show(trace, () => mind.showIdle());
+      if (next) {
+        // 一組（対応表＋原本）の保存に成功してから切り替える。失敗したら前回の状態のまま
+        if (persist(next.snapshot())) model.adopt(next); else result.code = 'save-failed';
+      } else model.recordStudy(result);
+      inspector.openStudy(result);
+    });
+  });
+}

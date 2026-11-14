@@ -6,7 +6,7 @@ import { createRoom, makeLabel } from './room.js';
 import { createActor } from './actor.js';
 import { createMindView } from './mindview.js';
 import { sound } from './sound.js';
-import { MEMORY_CAPACITY, EMPTY_REPLY, memoryText } from '../model/model.js';
+import { PENDING_CAPACITY, EMPTY_REPLY, conversationText } from '../model/model.js';
 
 const END_TEXT = {
   eos: '',
@@ -26,14 +26,14 @@ function shorten(text, max) {
   return chars.length > max ? `${chars.slice(0, max - 1).join('')}…` : text;
 }
 
-export async function createStage(root, model) {
+export async function createStage(root, model, inspector) {
   root.classList.add('stage3d');
   const caption = document.createElement('div');
   caption.className = 'caption';
 
   const room = await createRoom(root);
   const actor = createActor(room);
-  const mind = createMindView(root, room, model);
+  const mind = createMindView(root, room, model, inspector);
   root.append(caption);
   const { scene, tween, wait } = room;
   // 札。縦長の画面では大きめに、短めに作る
@@ -79,21 +79,28 @@ export async function createStage(root, model) {
     return tween(ms, (k) => { door.rotation.y = from + (to - from) * ease(k); });
   };
 
-  // 一時停止とコマ送り。トレースの 1 手順ごとに gate() で待つ
-  let paused = false;
-  let waiter = null;
+  // 一時停止とコマ送り。トレースの 1 手順ごとに gate() で待つ。止める理由は複数あり得る（手動・閲覧）
+  const pauseReasons = new Set();
+  const paused = () => pauseReasons.size > 0;
+  let waiter = null, stepping = false; // stepping: コマ送りで次の gate まで進む
   function gate() {
-    if (!paused) return undefined;
+    stepping = false;
+    if (!paused()) return undefined;
     return new Promise((resolve) => { waiter = resolve; });
   }
+  const isPaused = () => paused() && !stepping;
   function release() {
     waiter?.();
     waiter = null;
   }
-  function setPaused(value) {
-    paused = value;
-    if (!paused) release();
+  function stepOnce() { stepping = true; release(); }
+  function setPaused(value, reason = 'manual') {
+    if (value) pauseReasons.add(reason); else pauseReasons.delete(reason);
+    if (!paused()) release();
   }
+  // 本やバインダーを開いている間は止め、閉じたら元の状態（手動停止や説明待ち）へ戻す
+  inspector.on('open', () => { setPaused(true, 'inspect'); mind.view.frozen = true; });
+  inspector.on('close', () => { setPaused(false, 'inspect'); mind.view.frozen = false; });
 
   // 広場で話す人（最大 4 人）。ふだんは隠しておく
   const npcs = NPC_COLORS.map((color) => {
@@ -155,12 +162,12 @@ export async function createStage(root, model) {
   function updateBoard() {
     const s = mind.stats();
     room.board.write('そだちぐあい', [
-      { label: 'おぼえた文字', value: `${s.kinds} 種類` },
-      { label: s.neural ? '考え方' : '文字のつながり', value: s.neural ? '自己注意' : `${s.links} 本` },
-      { label: s.neural ? '重みの更新' : '数えた回数', value: `${s.total} 回` },
+      { label: 'おぼえた文字', value: `${s.chars} 種類` },
+      { label: 'ことばのまとまり', value: `${s.merges} 個` },
+      { label: '原本の更新', value: `${s.updates} 回` },
       { label: '眠った回数', value: `${s.sleeps} 回` },
     ]);
-    actor.setGrowth(s.kinds);
+    actor.setGrowth(s.chars);
   }
 
   // ---- 短期記憶（かごの上の札） ----
@@ -178,7 +185,7 @@ export async function createStage(root, model) {
   function updateMemCount() {
     if (memCount) remove(memCount);
     limitMemoryLabels();
-    memCount = label(`${mem.length} / ${MEMORY_CAPACITY}`, { size: 0.24, bg: '#eef5e6', border: '#9cc27c' });
+    memCount = label(`${mem.length} / ${PENDING_CAPACITY}`, { size: 0.24, bg: '#eef5e6', border: '#9cc27c' });
     put(memCount, new THREE.Vector3(memBase.x, memBase === P.basketTop ? 0.28 : memBase.y - 0.15, memBase.z + 0.5));
   }
   function restack(ms) {
@@ -188,7 +195,7 @@ export async function createStage(root, model) {
   function syncMemory(list) {
     clearLines();
     mem.forEach((m) => remove(m.sprite));
-    mem = list.map((entry, i) => { const text = memoryText(entry); return { text, sprite: put(memLabel(text), memSlot(i)) }; });
+    mem = list.map((entry, i) => { const text = conversationText(entry); return { text, sprite: put(memLabel(text), memSlot(i)) }; });
     updateMemCount();
     mind.sync();
     updateBoard();
@@ -248,7 +255,7 @@ export async function createStage(root, model) {
     let step = getStep();
     clearLines();
     caption.textContent = '';
-    const text = trace.find((ev) => ev.type === 'tokenize')?.tokens.join('') ?? '';
+    const text = trace.find((ev) => ev.type === 'tokenize')?.text ?? '';
     await actor.walkTo(P.home, step, FRONT);
     heardLabel = put(label(shorten(text, lineMax()), { size: 0.4, bg: '#dcebf5', border: '#9fc3e0' }),
       tall() ? above(P.home, 0, 3.3, 0) : above(P.home, -1.5, 2.3, 0.6));
@@ -264,7 +271,7 @@ export async function createStage(root, model) {
     for (const ev of trace) {
       await gate();
       if (getStep() === 0) break;
-      await mind.handle(ev, getStep(), gate);
+      await mind.handle(ev, getStep(), gate, isPaused, getStep);
     }
     await mind.close(getStep() * 2);
 
@@ -317,7 +324,7 @@ export async function createStage(root, model) {
     for (const ev of trace) {
       await gate();
       if (getStep() === 0) break;
-      await mind.handle(ev, getStep(), gate);
+      await mind.handle(ev, getStep(), gate, isPaused, getStep);
     }
     // 夢の中でおぼえた文は、かごからなくなる
     mem.forEach((m) => remove(m.sprite));
@@ -348,8 +355,10 @@ export async function createStage(root, model) {
     const types = new Set(trace.map((ev) => ev.type));
     if (types.has('replay')) {
       await playSleep(trace, getStep);
-    } else if (types.has('tokenize') || types.has('lookup')) {
+    } else if (types.has('tokenize')) {
       await playInfer(trace, getStep);
+    } else if (types.has('study')) {
+      await playStudy(trace, getStep);
     } else {
       for (const ev of trace) {
         // 知らない type は無視する
@@ -359,6 +368,41 @@ export async function createStage(root, model) {
     }
     mind.sync();
     updateBoard();
+  }
+
+  // ---- 勉強: 机の本から頭の中へ移り、まとまり探しを見せる ----
+  async function playStudy(trace, getStep) {
+    clearLines();
+    caption.textContent = '';
+    await actor.walkTo(room.object('journal_desk').getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 0, 1.0)), getStep(), FRONT);
+    await actor.hop(getStep(), 0.2);
+    await mind.open('study', headOnScreen(), getStep() * 4);
+    for (const ev of trace) {
+      await gate();
+      if (getStep() === 0) break;
+      await mind.handle(ev, getStep(), gate, isPaused, getStep);
+    }
+    await mind.close(getStep() * 2);
+    await actor.walkTo(P.home, getStep(), FRONT);
+  }
+
+  // ---- 勉強: 机の本から頭の中へ移り、まとまり探しを見せる ----
+  async function playStudy(trace, getStep) {
+    clearLines();
+    caption.textContent = '';
+    // 机の正面へ回り込む（机を突っ切らない）
+    const desk = room.object('journal_desk').getWorldPosition(new THREE.Vector3());
+    await actor.walkTo(new THREE.Vector3(desk.x + 1.6, 0, desk.z + 1.3), getStep());
+    await actor.walkTo(new THREE.Vector3(desk.x + .3, 0, desk.z + 1.2), getStep(), FRONT);
+    await actor.hop(getStep(), 0.2);
+    await mind.open('study', headOnScreen(), getStep() * 4);
+    for (const ev of trace) {
+      await gate();
+      if (getStep() === 0) break;
+      await mind.handle(ev, getStep(), gate, isPaused, getStep);
+    }
+    await mind.close(getStep() * 2);
+    await actor.walkTo(P.home, getStep(), FRONT);
   }
 
   function say(text) {
@@ -472,8 +516,8 @@ export async function createStage(root, model) {
   const bedPos = room.object('bed').getWorldPosition(new THREE.Vector3());
   const boardPos = room.board.mesh.position;
   const HOT = [
-    { id: 'journal', label: '観察ノート', objects: [room.object('journal_desk')], center: () => room.object('journal').getWorldPosition(new THREE.Vector3()), top: 0.4 },
-    { id: 'chips', label: 'チップ箱', objects: [room.object('chip_box')], center: () => room.object('chip_box').getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 0.15, 0.15)), top: 0.4 },
+    { id: 'journal', label: '観察ノート', objects: [room.object('journal')], center: () => room.object('journal').getWorldPosition(new THREE.Vector3()), top: 0.4 },
+    { id: 'study', label: '勉強用の本', objects: [room.object('study_book')], center: () => room.object('study_book').getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 0.2, 0)), top: 0.5 },
     { id: 'memory', label: 'ことばのかご', objects: [room.object('basket')], center: () => above(P.basketTop, 0, -0.45, 0.4), top: 0.6 },
     { id: 'talk', label: '話しかける', objects: [actor.root], center: () => above(actor.root.position, 0, 0.8, 0), top: 1.2 },
     { id: 'listen', label: 'お出掛け', objects: [door, room.object('door_top')],
@@ -526,7 +570,7 @@ export async function createStage(root, model) {
     }
     if (best) return best.hot;
     // 小さな小物にも指で押せる余白を持たせる。
-    return HOT.filter(h => ['journal', 'chips', 'memory'].includes(h.id))
+    return HOT.filter(h => ['journal', 'study', 'memory'].includes(h.id))
       .map(h => ({ hot: h, p: room.screenPos(h.center()) }))
       .map(v => ({ ...v, d: Math.hypot(v.p.x - ev.clientX, v.p.y - ev.clientY) }))
       .filter(v => v.d < 24).sort((a, b) => a.d - b.d)[0]?.hot ?? null;
@@ -548,7 +592,7 @@ export async function createStage(root, model) {
   updateBoard();
   return {
     play, say, showIdle, syncMemory, goListen, speak, comeBack, toggleExplore, prepareSleep, finishSleep,
-    setPaused, stepOnce: release, npcColors: NPC_COLORS,
+    setPaused, stepOnce, npcColors: NPC_COLORS,
     setFastForward: room.setFastForward,
     // 部屋のものが押されたら fn(id) を呼ぶ（何もないところを押したら id は null）
     triggerAction: trigger,

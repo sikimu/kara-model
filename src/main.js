@@ -197,9 +197,8 @@ titleScreen.className = 'title-screen';
 titleScreen.setAttribute('aria-labelledby', 'game-title');
 const release = document.querySelector('meta[name="app-version"]')?.content ?? 'dev';
 titleScreen.innerHTML = `<img class="title-art" src="./assets/journey-home.png?v=${release}" alt="青いマフラーのコトが、聞いたことばをかごに入れて家に帰る夕暮れの庭">
-  <div class="title-copy"><p class="title-eyebrow">ことばを知らない、きみと暮らす。</p>
-  <h1 id="game-title">からっぽの<span>コト</span></h1>
-  <p class="title-tagline">聞いて、眠って、<br>ことばが育つ。</p></div>
+  <div class="title-motes" aria-hidden="true">${Array.from({ length: 12 }, (_, i) => `<i style="--i:${i}"></i>`).join('')}</div>
+  <div class="title-copy"><h1 id="game-title"><img class="title-logo" src="./assets/title-logo.png?v=${release}" alt="からっぽのコト"></h1></div>
   <div class="title-entry"><button class="title-start" type="button" disabled>おうちを準備しています…</button>
   <p class="title-status" role="status">まもなく、コトに会えます。</p></div>`;
 app.append(titleScreen);
@@ -227,21 +226,20 @@ let busy = false;      // 演出中、または頭の中をのぞいている
 let exploring = false;
 let openPart = null;   // 開いている入力（'talk' | 'listen' | 'sleep' | null）
 const partRoots = {};
-const touchAction = matchMedia('(pointer: coarse)').matches ? 'タップ' : 'クリック';
-const lessons = [['talk', 'コト', 'talk'], ['listen', 'ドア', 'walk'], ['sleep', 'ベッド', 'sleep'], ['talk', 'コト', 'talk']];
+const lessons = [['talk', 'コトと話す', 'talk'], ['listen', 'まちへ出かける', 'walk'], ['sleep', 'ひと休みする', 'sleep'], ['talk', 'もう一度話す', 'talk']];
 const guideTarget = iconButton('talk', 'コト', 'tutorial-target');
 app.append(guideTarget);
 guideTarget.addEventListener('click', () => mind.triggerAction(model.tutorial.reflection ? 'journal' : lessons[model.tutorial.step]?.[0]));
 function placeGuideTarget() {
-  const lesson = model.tutorial.reflection ? ['journal', '観察ノート', 'book'] : lessons[model.tutorial.step];
+  const lesson = model.tutorial.reflection ? ['journal', '観察ノートを読む', 'book'] : lessons[model.tutorial.step];
   guideTarget.hidden = !started || busy || openPart !== null || !lesson;
   if (guideTarget.hidden) return;
   const point = mind.hotPoint(lesson[0]);
-  guideTarget.style.left = `${point.x}px`;
-  guideTarget.style.top = `${point.y}px`;
-  guideTarget.innerHTML = `${ICONS[lesson[2]]}<span>${touchAction}</span>`;
-  guideTarget.setAttribute('aria-label', `${lesson[1]}を${touchAction}`);
-  guideTarget.title = `${lesson[1]}を${touchAction}`;
+  guideTarget.style.left = `${Math.max(90, Math.min(innerWidth - 90, point.x))}px`;
+  guideTarget.style.top = `${Math.max(135, point.y - 86)}px`;
+  guideTarget.innerHTML = `${ICONS[lesson[2]]}<span>${lesson[1]}</span>`;
+  guideTarget.setAttribute('aria-label', lesson[1]);
+  guideTarget.title = lesson[1];
 }
 window.addEventListener('resize', () => requestAnimationFrame(placeGuideTarget));
 function complete(action, reply) {

@@ -6,6 +6,7 @@ import { FONT, roundRect } from './room.js';
 import { sound } from './sound.js';
 import { BOS, EOS, MAX_OUTPUT, MEMORY_CAPACITY, memoryText } from '../model/model.js';
 import { drawNeural } from './neural-view.js';
+import { createMindCourier } from './mind-courier.js';
 
 const SLOTS = [
   ['tokenizer', '切り方'],
@@ -30,6 +31,7 @@ const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const edgeKey = (a, b) => `${a}\u0000${b}`;
 
 export function createMindView(root, room, model) {
+  const courier = createMindCourier(room.character, room.courierBag);
   const canvas = document.createElement('canvas');
   canvas.className = 'mind-view';
   root.append(canvas);
@@ -707,7 +709,7 @@ export function createMindView(root, room, model) {
     g.clearRect(0, 0, W, H);
     if (reveal <= 0) return;
     simulate();
-    if (model.chips.predictor.id === 'predictor-transformer') drawNeural(g, v, model, W, H);
+    if (model.chips.predictor.id === 'predictor-transformer') drawNeural(g, v, model, W, H, courier, clock);
     else drawScene();
     drawParticles();
     if (v.flight) {
@@ -743,7 +745,6 @@ export function createMindView(root, room, model) {
       cloudPath(cx, cy, r + 7);
       g.fill();
     }
-    g.globalCompositeOperation = 'source-over';
     // 頭から雲へ続く小さな泡
     [[0.04, 26, 30, 8], [0.16, 50, 66, 13], [0.28, 74, 112, 19]].forEach(([at, dx, dy, size], i) => {
       const bk = clamp((reveal - at) / 0.12, 0, 1) * (1 - clamp((reveal - 0.7) / 0.2, 0, 1));
@@ -756,6 +757,7 @@ export function createMindView(root, room, model) {
       g.lineWidth = 2;
       g.stroke();
     });
+    g.globalCompositeOperation = 'source-over';
   }
   room.onFrame(draw);
 
@@ -771,6 +773,7 @@ export function createMindView(root, room, model) {
     }
   }
   async function open(mode, from, ms, memory = model.shortMemory) {
+    root.classList.add('mind-active');
     v = fresh(mode);
     if (model.chips.predictor.id === 'predictor-transformer') {
       const net = model.network.snapshot();
@@ -795,6 +798,7 @@ export function createMindView(root, room, model) {
     root.style.overflowY = 'hidden';
     await room.tween(ms, (k) => { reveal = 1 - k; });
     reveal = 0;
+    root.classList.remove('mind-active');
   }
 
   // のぞいているとき: 文字をクリックすると、その行を出す
@@ -990,15 +994,59 @@ export function createMindView(root, room, model) {
     },
   };
 
-  async function handle(ev, step) {
+  async function handle(ev, step, gate = async () => {}) {
     if (model.chips.predictor.id === 'predictor-transformer') {
-      if (ev.type === 'attention') v.attention = ev;
-      if (ev.type === 'probs') v.rows = ev.candidates;
-      if (ev.type === 'pick') v.picked = ev.token;
-      if (ev.type === 'emit') v.out.push(ev.token);
+      ambientStep = step > 0 ? step : ambientStep;
+      canvas.dataset.phase = ev.type;
+      let carried = false;
+      const carry = async (token, from, to) => {
+        if (carried) await gate();
+        carried = true;
+        v.courier = { token, from, to, k: 0 };
+        await animate(step * 3, k => {
+          v.courier.k = k;
+          canvas.dataset.carry = k < .2 ? 'packing' : k > .8 ? 'unpacking' : 'walking';
+        });
+        v.courier = { token: null, from: to, to, k: 1 };
+        delete canvas.dataset.carry;
+      };
+      if (ev.type === 'tokenize') {
+        v.heard = [];
+        for (const token of ev.tokens) {
+          await carry(token, { lane: 'entry' }, { lane: 'heard', index: Math.min(7, v.heard.length), count: Math.min(8, v.heard.length + 1) });
+          v.heard.push(token);
+        }
+      }
+      if (ev.type === 'attention') {
+        v.attention = ev;
+        const clues = ev.weights.map((weight, index) => ({ weight, index })).sort((a, b) => b.weight - a.weight).slice(0, 2);
+        for (const { index } of clues) {
+          v.attentionFocus = index;
+          await carry(ev.tokens[index], { lane: 'attention', index }, { lane: 'work' });
+        }
+        v.attentionFocus = null;
+      }
+      if (ev.type === 'probs') { v.rows = ev.candidates; v.picked = null; }
+      if (ev.type === 'pick') {
+        await animate(step * 2, k => { v.rollIndex = Math.floor(k * 15) % Math.min(5, v.rows.length); });
+        v.rollIndex = null; v.picked = ev.token;
+      }
+      if (ev.type === 'emit') {
+        const rows = [...v.rows].sort((a, b) => b.p - a.p).slice(0, 5);
+        const selected = v.rows.find(r => r.token === ev.token);
+        if (selected && !rows.includes(selected)) rows[rows.length - 1] = selected;
+        await carry(ev.token, { lane: 'candidates', index: Math.max(0, rows.indexOf(selected)), count: rows.length }, { lane: 'output', index: v.out.length });
+        v.out.push(ev.token);
+      }
       if (ev.type === 'end') v.endText = END_TEXT[ev.reason];
       if (ev.type === 'gradient') { (v.losses ??= []).push(ev); v.matrices = ev.matrices; }
-      if (ev.type === 'replay') v.seq = ev.tokens;
+      if (ev.type === 'replay') {
+        v.seq = ev.tokens;
+        for (let i = 0; i < ev.tokens.length; i++) {
+          v.seqAt = i;
+          await carry(ev.tokens[i], { lane: 'heard', index: Math.min(i, 7), count: Math.min(8, ev.tokens.length) }, { lane: 'work' });
+        }
+      }
       await animate(step * (ev.type === 'gradient' ? 2 : .8));
       return;
     }

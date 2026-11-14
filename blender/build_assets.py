@@ -677,6 +677,21 @@ def build_sleep_mobile():
     export('sleep-mobile.glb')
 
 
+def build_courier_bag():
+    reset()
+    leather = mat('courier_leather', (.60, .34, .17))
+    edge = mat('courier_edge', (.83, .63, .33))
+    brass = mat('courier_buckle', (.94, .78, .35), metal=.5)
+    box('satchel', S(.49, .34, .19), leather, T(0, .48, .43), bevel=.065)
+    box('satchel_flap', S(.47, .15, .045), edge, T(0, .58, .54), bevel=.035)
+    box('satchel_clasp', S(.065, .09, .025), brass, T(0, .51, .57), bevel=.012)
+    box('satchel_strap', S(.065, .39, .035), leather, T(0, .64, .40), rot=RZ(-32), bevel=.015)
+    for i in range(9):
+        sphere(f'satchel_stitch{i}', .009, edge, T(-.19 + i * .0475, .35, .532), seg=8)
+    export('courier-bag.glb')
+
+
+build_courier_bag()
 build_workshop()
 build_sleep_mobile()
 build_character()

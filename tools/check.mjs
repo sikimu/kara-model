@@ -147,13 +147,14 @@ try {
   expect('検証対象の最新版を読み込んでいる', await evaluate(`document.querySelector('meta[name="app-version"]').content === ${JSON.stringify(release)}`));
   expect('コード・スタイル・3D素材のURLに版番号が付いている', await evaluate(`performance.getEntriesByType('resource').filter(e => { const u = new URL(e.name); return u.origin === location.origin && /\\.(js|css|glb)$/.test(u.pathname); }).every(e => new URL(e.name).searchParams.get('v') === ${JSON.stringify(release)})`));
   expect('タイトルの描き下ろし画像を読み込める', await evaluate(`document.querySelector('.title-art').complete && document.querySelector('.title-art').naturalWidth > 0`));
+  expect('絵のタイトルと庭が動く', await evaluate("document.querySelector('.title-logo').naturalWidth > 0 && document.querySelector('.title-art').getAnimations().length > 0"));
   await shot('0-title.png');
   await clickOn('.title-start');
   expect('開始ボタンで部屋に入れる', await evaluate(`document.querySelector('.title-screen').hidden`));
   expect('起動して操作できる', (await busy()) === false);
   expect('ゲームタイトルを表示する', await evaluate(`document.title.startsWith('からっぽのコト') && document.querySelector('.logo').textContent.includes('からっぽのコト')`));
   expect('初日は会話から案内する', await evaluate(`kara.tutorial.step === 0 && !document.querySelector('.tutorial-target').hidden`));
-  expect('操作前は結果を明かさず、コトを押すよう案内する', await evaluate(`document.querySelector('.tutorial-target').getAttribute('aria-label').includes('コトを${MOBILE ? 'タップ' : 'クリック'}') && !document.querySelector('.tutorial-target').getAttribute('aria-label').includes('返事は') && !document.querySelector('.tutorial-target').hidden`));
+  expect('操作の目的で案内する', await evaluate(`document.querySelector('.tutorial-target').getAttribute('aria-label') === 'コトと話す' && !document.querySelector('.tutorial-target').hidden`));
   expect('常設の文章パネルを置かない', await evaluate(`!document.querySelector('.tutorial')`));
   await shot('1-home.png');
   await clickOn('.settings-button');
@@ -161,7 +162,27 @@ try {
   await shot('0-settings.png');
   await clickOn('.settings-close');
 
-  if (process.argv.includes('--sleep-preview')) {
+  if (process.argv.includes('--mind-preview')) {
+    await evaluate(`(() => { kara.hear('やあ'); kara.sleep(); const slider = document.querySelector('.speed-slider'); slider.value = '5'; slider.dispatchEvent(new Event('input')); })()`);
+    await action('talk');
+    await evaluate(`(() => { document.querySelector('.talk-form input').value = 'やあ'; document.querySelector('.talk-form').requestSubmit(); })()`);
+    for (const phase of ['packing', 'walking', 'unpacking']) {
+      let found = false;
+      for (let i = 0; i < 150; i++) {
+        if (await evaluate(`document.querySelector('.mind-view').dataset.carry === '${phase}'`)) { found = true; break; }
+        await sleep(100);
+      }
+      expect(`ことばを ${phase} する`, found);
+      if (found) await shot(`16-mind-${phase}.png`);
+    }
+    expect('考えごとの間は部屋の字幕を前面に出さない', await evaluate(`getComputedStyle(document.querySelector('.caption')).visibility === 'hidden'`));
+    for (let i = 0; i < 150; i++) {
+      if (await evaluate(`document.querySelector('.mind-view').dataset.phase === 'attention'`)) break;
+      await sleep(100);
+    }
+    await shot('17-mind-attention.png');
+    await clickOn('.skip-button'); await done();
+  } else if (process.argv.includes('--sleep-preview')) {
     await evaluate(`(() => { kara.hear('おやすみ'); const slider = document.querySelector('.speed-slider'); slider.value = '0'; slider.dispatchEvent(new Event('input')); })()`);
     await action('sleep');
     await clickOn('.sleep-button');
@@ -195,7 +216,7 @@ try {
   expect('体験後の説明も再読み込みで失われない', await evaluate(`kara.tutorial.reflection === 'first-talk'`));
   await action('journal');
   await clickOn('.journal-finish');
-  expect('説明を読んだあとドアを押す案内が出る', await evaluate(`!kara.tutorial.reflection && document.querySelector('.tutorial-target').getAttribute('aria-label').includes('ドアを') && !document.querySelector('.tutorial-target').hidden`));
+  expect('説明を読んだあと出掛ける案内が出る', await evaluate(`!kara.tutorial.reflection && document.querySelector('.tutorial-target').getAttribute('aria-label').includes('まちへ出かける') && !document.querySelector('.tutorial-target').hidden`));
 
   // お出掛け（お手本を入れて、まちの ひろば へ）
   await action('listen');
@@ -326,7 +347,7 @@ try {
   expect('チップと温度、初日の完了が保存される', await evaluate(`kara.chips.sampler.id === 'sampler-temperature' && kara.options.temperature === 0.5 && kara.tutorial.step === 4`));
   }
 
-  if (!process.argv.includes('--appearance') && !process.argv.includes('--sleep-preview')) {
+  if (!process.argv.includes('--appearance') && !process.argv.includes('--sleep-preview') && !process.argv.includes('--mind-preview')) {
     await action('sleep');
     await clickOn('.sleep-button');
     await sleep(350);

@@ -460,3 +460,25 @@ button.person-icon:hover { background: #f0e4cb; }
   .workshop-detail { grid-column: 1; grid-row: 4; padding: 18px; }.workshop-detail h3 { font-size: 18px; margin: 6px 0; }.workshop-detail p { margin: 6px 0; }
   .workshop-detail .chip-choices { flex-direction: row; margin-top: 15px; }.workshop .chip-heat { margin-top: 15px; }
 }
+/* コトの看板と、風に揺れる庭。 */
+.title-screen::after { background: linear-gradient(90deg, #fff5dc55, transparent 65%); }
+.title-art { animation: garden-breathe 18s ease-in-out infinite alternate; }
+.title-copy { left: 2%; top: 8%; width: min(48vw, 690px); }
+.title-copy h1 { margin: 0; font-size: 0; }
+.title-logo { display: block; width: 100%; filter: drop-shadow(0 12px 12px #674c2444); animation: sign-sway 6s ease-in-out infinite; }
+.title-entry { left: 10%; bottom: 10%; }
+.title-start { border: 3px solid #b18a4f; border-radius: 12px 25px 16px 22px; color: #fff3ce; background: linear-gradient(175deg, #6c8360, #3d5b41); box-shadow: inset 0 0 0 2px #b9bf8b88, 0 6px 0 #66492e, 0 12px 22px #47301d55; }
+.title-start::before, .title-start::after { content: '✦'; margin: 0 12px; font-size: 12px; color: #ebd49b; }
+.title-motes { position: absolute; inset: 0; pointer-events: none; }
+.title-motes i { position: absolute; left: calc(5% + var(--i) * 8%); top: calc(30% + mod(var(--i) * 13, 60) * 1%); width: 5px; height: 5px; border-radius: 50%; background: #fff6b3; box-shadow: 0 0 13px 4px #ffe19b77; animation: firefly 7s ease-in-out infinite; animation-delay: calc(var(--i) * -.9s); }
+@keyframes garden-breathe { from { transform: scale(1.02) translateX(-.5%); } to { transform: scale(1.08) translateX(.5%); } }
+@keyframes sign-sway { 0%, 100% { transform: translateY(0) rotate(-1deg); } 50% { transform: translateY(-9px) rotate(1deg); } }
+@keyframes firefly { 0%, 100% { opacity: .1; translate: 0 12px; } 50% { opacity: .9; translate: 16px -20px; } }
+.tutorial-target { width: auto; min-width: 150px; height: 46px; padding: 8px 14px; display: flex; gap: 8px; border: 2px solid #8e9a65; border-radius: 8px 22px 8px 22px; background: linear-gradient(#fff7d9, #e9e8be); box-shadow: 0 4px 0 #68765288, 0 8px 16px #36452c33; transform: translate(-50%, -100%); animation: guide-float 3s ease-in-out infinite; }
+.tutorial-target > span { position: static; transform: none; background: none; border: 0; box-shadow: none; padding: 0; font-size: 13px; color: #40583c; font-weight: bold; }
+.tutorial-target::after { content: ''; position: absolute; left: calc(50% - 6px); bottom: -10px; width: 12px; height: 12px; background: #e9e8be; border-right: 2px solid #8e9a65; border-bottom: 2px solid #8e9a65; transform: rotate(45deg); }
+.tutorial-target svg { width: 22px; height: 22px; }
+@keyframes guide-float { 50% { translate: 0 -5px; } }
+.mind-active .caption { visibility: hidden; }
+@media (max-width: 640px) { .title-copy { width: 96%; left: 2%; top: 5%; }.title-entry { left: 50%; bottom: 7%; }.title-start { min-width: 230px; }.tutorial-target { height: 42px; }.title-screen::after { background: linear-gradient(#fff7e622, transparent 65%, #fff7e655); } }
+@media (prefers-reduced-motion: reduce) { .title-art, .title-logo, .title-motes i, .tutorial-target { animation: none; } }

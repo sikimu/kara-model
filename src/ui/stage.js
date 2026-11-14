@@ -264,7 +264,7 @@ export async function createStage(root, model) {
     for (const ev of trace) {
       await gate();
       if (getStep() === 0) break;
-      await mind.handle(ev, getStep());
+      await mind.handle(ev, getStep(), gate);
     }
     await mind.close(getStep() * 2);
 
@@ -317,7 +317,7 @@ export async function createStage(root, model) {
     for (const ev of trace) {
       await gate();
       if (getStep() === 0) break;
-      await mind.handle(ev, getStep());
+      await mind.handle(ev, getStep(), gate);
     }
     // 夢の中でおぼえた文は、かごからなくなる
     mem.forEach((m) => remove(m.sprite));

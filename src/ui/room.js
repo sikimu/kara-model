@@ -133,11 +133,12 @@ export async function createRoom(root) {
 
   const loader = new GLTFLoader();
   const version = document.querySelector('meta[name="app-version"]')?.content ?? 'dev';
-  const [roomGltf, charGltf, npcGltf, sleepGltf] = await Promise.all([
+  const [roomGltf, charGltf, npcGltf, sleepGltf, bagGltf] = await Promise.all([
     loader.loadAsync(`./assets/room.glb?v=${version}`),
     loader.loadAsync(`./assets/character.glb?v=${version}`),
     loader.loadAsync(`./assets/npc.glb?v=${version}`),
     loader.loadAsync(`./assets/sleep-mobile.glb?v=${version}`),
+    loader.loadAsync(`./assets/courier-bag.glb?v=${version}`),
   ]);
   for (const gltf of [roomGltf, charGltf, npcGltf]) {
     gltf.scene.traverse((o) => {
@@ -309,6 +310,7 @@ export async function createRoom(root) {
     // 縦長の画面では札の文字が小さくなるので、大きめに作る
     get textScale() { return isTall() ? 1.6 : 1; },
     character: charGltf.scene,
+    courierBag: bagGltf.scene,
     npc: npcGltf.scene, // 広場で話す人のひな形（場面には足していない）
     sleepMobile: sleepGltf.scene,
     board,
